@@ -16,6 +16,7 @@ from pylab import *
 from cvxopt import setseed, normal, uniform, lapack, solvers
 from cvxopt.base import matrix
 from cvxopt.modeling import variable, op, max, sum
+from ipdb import set_trace
 
 inf = float('inf')
 
@@ -94,17 +95,16 @@ class node:
     def solve(self):
         """Find upper and lower bounds of the sub-problem belonging to
         this node."""
+
+        # Use cvxopt to solve the problem.
         x = variable(self.n)
         z = variable(self.n)
-
         constr = [z <= 1, z >= 0, x >= min_mat *
                   z, x <= max_mat * z, A * x <= b]
         for i in self.ones:
             constr.append(z[i] == 1)
         for i in self.zeros:
             constr.append(z[i] == 0)
-
-        # Use cvxopt to solve the problem.
         o = op(sum(z), constr)
         o.solve()
 
@@ -178,7 +178,8 @@ class node:
 
     def __repr__(self):
         return '<node: mass=%d, zeros=%s, ones=%s>' % (self.mass(),
-                                                       str(self.zeros), str(self.ones))
+                                                       str(self.zeros),
+                                                       str(self.ones))
 
     def nodes(self, all=False):
         """Returns a list of all nodes that live at, or below, this point.
@@ -282,7 +283,7 @@ if __name__ == "__main__":
 
     Uglob = top.solve()
     Lglob = -inf
-    nodes = [top]
+    # nodes = [top]
     leaves = [top]
     masses = []
     leavenums = []
@@ -295,14 +296,19 @@ if __name__ == "__main__":
         iter += 1
         # Expand the leaf with lowest lower bound.
         l = argminl(leaves, Uglob)
+
+        # Add left and right branches and solve them
         left = l.addleft()
         right = l.addright()
+
         leaves.remove(l)
         leaves += [left, right]
 
         Lglob = min([x.lower for x in leaves])
         Uglob = min(Uglob, left.upper, right.upper)
 
+        set_trace()
+        
         lowers.append(Lglob)
         uppers.append(Uglob)
 
