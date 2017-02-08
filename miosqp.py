@@ -1,6 +1,10 @@
 """
 Solve Mixed-Integer QPs using Branch and Bound and OSQP Solver
+
+
+Written by Bartolomeo Stellato, February 2017, University of Oxford
 """
+
 from __future__ import print_function
 import osqp  # Import OSQP Solver
 import numpy as np
@@ -61,8 +65,8 @@ class Info(object):
     def __init__(self):
         # Initialize branch and bound iterations
         self.iter_num = 0
-        self.u_glob = np.inf
-        self.l_glob = -np.inf
+        self.upper_glob = np.inf
+        self.lower_glob = -np.inf
         self.obj_val = np.inf
         self.status = MI_UNSOLVED
 
@@ -86,7 +90,7 @@ class Node:
         self.lower = -np.inf
         self.upper = np.inf
 
-        # Set lower and upper bounds for relaxed QP problem
+        # Set l and u for relaxed QP problem
         self.l = l
         self.u = u
 
@@ -131,11 +135,12 @@ class Node:
         # Check if integral feasible solution
         #       -> Node becomes fathomed
         #       -> Objective value is updated
+        #       -> New solution is stored
 
         # Compute lower bound (objective value of relaxed problem)
 
         # Compute upper bound (round solution, check feasibility, compute obj value)
-        # if infeasible --> infinite upper bound
+        # if rounde is infeasible --> infinite upper bound
 
 
 
@@ -173,8 +178,8 @@ class Workspace(object):
         """
         Check if the solver can continue
         """
-        check = self.info.u_glob - self.info.l_glob > self.settings.eps_bb_abs
-        check &= (self.info.u_glob - self.info.l_glob)/abs(self.info.l_glob) > \
+        check = self.info.upper_glob - self.info.lower_glob > self.settings.eps_bb_abs
+        check &= (self.info.upper_glob - self.info.lower_glob)/abs(self.info.lower_glob) > \
                  self.settings.eps_bb_rel
         check &= self.info.iter_num < self.settings.max_iter_bb
         return check
@@ -188,10 +193,10 @@ class Workspace(object):
         if tree_explor_rule == 0:
             # Choose leaf with lowest lower bound between leaves which
             # can be expanded
-            min_l = min([leaf.lower for leaf in self.leaves \
-                         if leaf.status != MI_NODE_FATHOMED])
+            min_lower = min([leaf.lower for leaf in self.leaves \
+                            if leaf.status != MI_NODE_FATHOMED])
             for x in self.leaves:
-                if x.lower == min_l:
+                if x.lower == min_lower:
                     leaf = x
         else:
             raise ValueError('Tree exploring strategy not recognized')
@@ -200,7 +205,7 @@ class Workspace(object):
 
     def branch_leaf(self, leaf):
         """
-        Expand leaf within leaves list in branch and bound tree. Then solve
+        Branch: Expand leaf within leaves list in branch and bound tree. Then solve
         the problems in the right and left children obtaining their respective
         lower and upper bounds
         """
@@ -208,15 +213,25 @@ class Workspace(object):
         right = leaf.add_right()
         self.leaves.remove(leaf)
         self.leaves += [left, right]
-        return left, right
 
-    def prune_nodes(self):
+        # Update lower and upper bound
+        self.info.lower_glob = min([x.lower for x in self.leaves])
+        # TODO: Can't the lower_glob update be only a min between current
+        #       lower_glob and the new ones for the leaves?
+        #       (just like the upper bound?)
+
+        # Update upper bound
+        self.info.upper_glob = min(self.info.upper_glob, left.upper, right.upper)
+        # if uppwer bound improved -> Store node solution x
+
+
+    def bound(self):
         """
-        Prune tree nodes if their lower value is greater than the current
+        Bound: prune tree nodes if their lower value is greater than the current
         upper bound
         """
         for node in self.root.nodes():
-            if node.lower > self.info.u_glob:
+            if node.lower > self.info.upper_glob:
                 node.status = MI_NODE_FATHOMED
 
     def solve(self):
@@ -230,32 +245,32 @@ class Workspace(object):
             # Root node infeasible or unbounded
             self.info.status = MI_INFEASIBLE_OR_UNBOUNDED
             return
-        self.info.u_glob = self.root.lower
-        self.info.l_glob = self.root.upper
+        self.info.upper_glob = self.root.lower
+        self.info.lower_glob = self.root.upper
 
 
         # Loop tree until the cost function gap has disappeared
         while self.can_continue():
 
-            # Choose leaf to branch depending on tree exploration rule
-            l = self.choose_leaf(self.settings.tree_explor_rule)
+            # 1) Choose leaf
+            #   -> Use tree exploration rule
+            leaf = self.choose_leaf(self.settings.tree_explor_rule)
 
-            # Expand choosen leaf, and solve children
-            left, right = self.branch_leaf(l)
+            # 2) Branch leaf
+            #   -> Solve children
+            #   -> Update lower and upper bounds
+            self.branch_leaf(leaf)
 
-            # Update lower and upper bound
-            self.info.l_glob = min([x.lower for x in self.leaves])
-            self.info.u_glob = min(self.info.u_glob, left.upper, right.upper)
-
-            # Prune nodes with lower bound above upper bound
-            self.prune_nodes()
+            # 3) Bound
+            #   -> prune nodes with lower bound above upper bound
+            self.bound()
 
             # Update iteration number
             self.info.iter_num += 1
 
             # Print progress
             print("iter %.3d   lower bound: %.5f, upper bound %.5f",
-                  self.info.iter_num, self.info.l_glob, self.info.u_glob)
+                  self.info.iter_num, self.info.lower_glob, self.info.upper_glob)
 
         return
 

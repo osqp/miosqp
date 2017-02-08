@@ -3,9 +3,8 @@
 
 ## TODO
 
--   [ ] Add basic branch and bound using OSQP
-    -   [ ] Check Infeasibility
-    -   [ ] Check Integrality
-    -   [ ] Add smart pruning using lower bound
-
--   [ ] Add warm starting function to inizialize solver solution (add function to OSQP)  
+-   [ ] Add functions: add_left and add_right for each node
+    -   [ ] N.B. Update node l_i and u_i by restricting newly introduced ones in branching
+-   [ ] Store solution when upper bound improves (only x, dual does not matter)
+-   [ ] Add function to deal separately with root node
+-   [ ] Add get_bounds function
