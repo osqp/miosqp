@@ -1,31 +1,241 @@
 """
 Solve Mixed-Integer QPs using Branch and Bound and OSQP Solver
 """
-
-from __future__ import print
+from __future__ import print_function
 import osqp  # Import OSQP Solver
 import numpy as np
+# import numpy.linalg as la
+import scipy.sparse as spa
+
+# Statuses
+MI_PENDING = 100
+MI_SOLVED = 101
+MI_FATHOMED = 99
+
+class Data(object):
+    """
+    Data for the relaxed qp problem
+    """
+    def __init__(self, P, q, A, l, u, i_idx):
+        # Get problem dimensions
+        self.n = A.shape[1]
+        self.m = A.shape[0]
+
+        #
+        # Extend problem with new constraints to accomodate integral constraints
+        #
+        I_int = spa.identity(self.n).tocsc()
+        I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
+                                    # the identity relative to the integer variables
+
+        # Extend the bounds only for the variables which are integer
+        l_int = np.empty((self.n,))
+        l_int.fill(-np.inf)
+        l_int = l_int[i_idx]
+        u_int = np.empty((self.n,))
+        u_int.fill(np.inf)
+        u_int = u_int[i_idx]
+
+        self.A = spa.vstack([A, I_int])      # Extend problem constraints matrix A
+        self.l = l.append(l_int)             # Extend problem constraints
+        self.u = u.append(u_int)             # Extend problem constraints
+
+        #
+        # Define problem cost function
+        #
+        self.P = P
+        self.q = q
+
+        # Define index of integer variables
+        self.i_idx = i_idx
+
+class Info(object):
+    """
+    Branch and bound solver information
+    """
+    def __init__(self):
+        # Initialize branch and bound iterations
+        self.iter_num = 0
+        self.u_glob = np.inf
+        self.l_glob = -np.inf
+        self.obj_val = np.inf
+
+class Solution(object):
+    """
+    Define best solution found so far
+    """
+    def __init__(self):
+        self.x = None
+        self.y = None
+
+class Node:
+    """
+    Branch-and-bound node class
+    """
+    def __init__(self, fixed=[], free=[], parent=None):
+        """
+        Initialize node class
+        """
+        # Set bounds
+        self.lower = -np.inf
+        self.upper = np.inf
+
+        # Set parent node
+        self.parent = parent
+
+        # Set node status
+        self.status = MI_PENDING
+
+        # Next variable to split on (not a variable we have already chosen)
+        self.nextvar = None
+
+        # Predefine left and right children
+        self.left = None
+        self.right = None
+
+    def nodes(self):
+        """
+        Returns a list of all non fathomed nodes at or below this point
+        """
+        nodes_list = []
+        if self.status != MI_FATHOMED:
+            nodes_list += [self]
+        if self.left is not None and self.left.status != MI_FATHOMED:
+            nodes_list += self.left.nodes(self)
+        if self.right is not None and self.right.status != MI_FATHOMED:
+            nodes_list += self.right.nodes(self)
+
+        return nodes_list
+
+    def solve(self):
+        """
+        Find upper and lower bounds for the relaxed problem corresponding to this node
+        """
+
+        # Update lower and upper bounds is OSQP to solve the current problem
+
+        # Solve current problem
+
+        # Check if infeasible or unbounded -> Node becomes fathomed
+
+        # Check if integral feasible solution
+        #       -> Node becomes fathomed
+        #       -> Objective value is updated
+
+        # Compute lower bound (objective value of relaxed problem)
+
+        # Compute upper bound (round solution, check feasibility, compute obj value)
+        # if infeasible --> infinite upper bound
 
 
-def choose_leaf(leaves, u_glob, branch_rule):
+
+class Workspace(object):
     """
-    Choose next leaf to branch depending on rule
+    Workspace class
+
+    Attributes
+    ----------
+    data: class
+        miqp problem data
+    settings: dictionary
+        branch and bound settings
+    osqp: class
+        osqp solver class
+    root: class
+        root node of the tree
+    leaves: list
+        leaves in the tree
+    info: class
+        information on the algorithm progress
     """
-    if branch_rule == 0:
-        leaf = argminl(leaves, u_glob)
-    else:
-        rause ValueError('Branching rule not recognized')
+    def __init__(self, data, settings):
+        self.data = data
+        self.settings = settings
+        self.info = Info()           # Initialize information
+        self.solution = Solution()   # Initialize problem solution
+
+        # Define root node
+        self.root = Node()
+        self.leaves = [self.root]  # At the initialization there is only the root node
 
 
-def branch_leaf(leaf, leaves):
-    """
-    Expand leaf within leaves list in branch and bound tree
-    """
-    left = l.add_left()
-    right = l.add_right()
-    leaves.remove(l)
-    leaves += [left, right]
-    return left, right
+    def can_continue(self):
+        """
+        Check if the solver can continue
+        """
+        check = self.info.u_glob - self.info.l_glob > self.settings.eps_bb_abs
+        check &= (self.info.u_glob - self.info.l_glob)/abs(self.info.l_glob) > \
+                 self.settings.eps_bb_rel
+        check &= self.info.iter_num < self.settings.max_iter_bb
+        return check
+
+
+    def choose_leaf(self, tree_explor_rule):
+        """
+        Choose next leaf to branch from the ones that can still be expanded
+        depending on branch_rule
+        """
+        if tree_explor_rule == 0:
+            # Choose leaf with lowest lower bound between leaves which
+            # can be expanded
+            min_l = min([leaf.lower for leaf in self.leaves \
+                         if leaf.status != MI_FATHOMED])
+            for x in self.leaves:
+                if x.lower == min_l:
+                    leaf = x
+        else:
+            raise ValueError('Tree exploring strategy not recognized')
+        return leaf
+
+
+    def branch_leaf(self, leaf):
+        """
+        Expand leaf within leaves list in branch and bound tree
+        """
+        left = leaf.add_left()
+        right = leaf.add_right()
+        self.leaves.remove(leaf)
+        self.leaves += [left, right]
+        return left, right
+
+    def prune_nodes(self):
+        """
+        Prune tree nodes if their lower value is greater than the current
+        upper bound
+        """
+        for node in self.root.nodes():
+            if node.lower > self.info.u_glob:
+                node.status = MI_FATHOMED
+
+    def solve(self):
+        """
+        Solve MIQP problem. This is the actual branch-and-bound algorithm
+        """
+
+        # Loop tree until the cost function gap has disappeared
+        while self.can_continue():
+
+            # Choose leaf to branch depending on tree exploration rule
+            l = self.choose_leaf(self.settings.tree_explor_rule)
+
+            # Expand choosen leaf
+            left, right = self.branch_leaf(l)
+
+            # Update lower and upper bound
+            self.info.l_glob = min([x.lower for x in self.leaves])
+            self.info.u_glob = min(self.info.u_glob, left.upper, right.upper)
+
+            # Prune nodes with lower bound above upper bound
+            self.prune_nodes()
+
+            # Update iteration number
+            self.info.iter_num += 1
+
+            # Print progress
+            print("iter %.3d   lower bound: %.5f, upper bound %.5f",
+                  self.info.iter_num, self.info.l_glob, self.info.u_glob)
+
+        return
 
 
 def miosqp_solve(P, q, A, l, u, i_idx):
@@ -33,40 +243,24 @@ def miosqp_solve(P, q, A, l, u, i_idx):
     Solve MIQP problem using MIOSQP solver
     """
 
-    # Branch and bound parameters
-    eps_bb = 1e-03          # tolerance for difference between upper and lower bound
-    eps_int_feas = 1e-03    # tolerance for integer feasibility
-    branch_rule = 0         # branching rule [0] lowest lower bound
 
-    # Extend problem with new constraints
-    # Extend matrix A and bounds l and u
-
-    # Initialize branch and bound iterations
-    iter = 0
-    u_glob = root.solve()
-    l_glob = -np.inf
-    leaves = [top]
-    # masses = []
-    # massesind = []
-    
-    # Loop tree until the gap has disappeared
-    while u_glob - l_glob > eps_bb:
-
-        # Choose leaf to branch depending on branch_rule
-        l = choose_leaf(leaves, u_glob, branch_rule)
-
-        # Expand best leaf
-        left, right = branch_leaf(l, leaves)
-
-        # Update lower and upper bound
-        l_glob = min([x.lower for x in leaves])
-        u_glob = min(u_glob, left.upper, right.upper)
-
-        # Update iteration number
-        iter += 1
-
-        # Print progress
-        print("iter %.3d   lower bound: %.5f, upper bound %.5f" % (iter,
-            l_glob, u_glob))
+    # Define problem settings
+    settings = {'eps_bb_abs': 1e-03,           # absolute convergence tolerance
+                'eps_bb_rel': 1e-03,           # relative convergence tolerance
+                'eps_int_feas': 1e-03,         # integer feasibility tolerance
+                'max_iter_bb': 1000,           # maximum number of iterations
+                'tree_explor_rule': 0,         # tree exploration rule
+                                               #   [0] lowest lower bound
+                'branching_rule': 0,           # branching rule
+                                               #   [0] max fractional part
+                'variable_selection_rule': 0}  # select next variable to split upon
 
 
+    # Create data class instance
+    data = Data(P, q, A, l, u, i_idx)
+
+    # Create Workspace
+    work = Workspace(data, settings)
+
+    # Solve problem
+    work.solve()
