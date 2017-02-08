@@ -7,10 +7,15 @@ import numpy as np
 # import numpy.linalg as la
 import scipy.sparse as spa
 
-# Statuses
-MI_PENDING = 100
-MI_SOLVED = 101
-MI_FATHOMED = 99
+# Solver statuses
+MI_UNSOLVED = 10
+MI_SOLVED = 11
+MI_INFEASIBLE_OR_UNBOUNDED = 9
+
+# Nodes statuses
+MI_NODE_PENDING = 100
+MI_NODE_SOLVED = 101
+MI_NODE_FATHOMED = 99
 
 class Data(object):
     """
@@ -59,6 +64,7 @@ class Info(object):
         self.u_glob = np.inf
         self.l_glob = -np.inf
         self.obj_val = np.inf
+        self.status = MI_UNSOLVED
 
 class Solution(object):
     """
@@ -72,7 +78,7 @@ class Node:
     """
     Branch-and-bound node class
     """
-    def __init__(self, fixed=[], free=[], parent=None):
+    def __init__(self, l, u):
         """
         Initialize node class
         """
@@ -80,16 +86,20 @@ class Node:
         self.lower = -np.inf
         self.upper = np.inf
 
-        # Set parent node
-        self.parent = parent
+        # Set lower and upper bounds for relaxed QP problem
+        self.l = l
+        self.u = u
+
+        # Set parent node (TODO: Need parent?)
+        # self.parent = parent
 
         # Set node status
-        self.status = MI_PENDING
+        self.status = MI_NODE_PENDING
 
-        # Next variable to split on (not a variable we have already chosen)
+        # Next variable to split on
         self.nextvar = None
 
-        # Predefine left and right children
+        # Predefine left and right children nodes
         self.left = None
         self.right = None
 
@@ -98,16 +108,16 @@ class Node:
         Returns a list of all non fathomed nodes at or below this point
         """
         nodes_list = []
-        if self.status != MI_FATHOMED:
+        if self.status != MI_NODE_FATHOMED:
             nodes_list += [self]
-        if self.left is not None and self.left.status != MI_FATHOMED:
+        if self.left is not None and self.left.status != MI_NODE_FATHOMED:
             nodes_list += self.left.nodes(self)
-        if self.right is not None and self.right.status != MI_FATHOMED:
+        if self.right is not None and self.right.status != MI_NODE_FATHOMED:
             nodes_list += self.right.nodes(self)
 
         return nodes_list
 
-    def solve(self):
+    def get_bounds(self):
         """
         Find upper and lower bounds for the relaxed problem corresponding to this node
         """
@@ -155,7 +165,7 @@ class Workspace(object):
         self.solution = Solution()   # Initialize problem solution
 
         # Define root node
-        self.root = Node()
+        self.root = Node(self.data.l, self.data.u)
         self.leaves = [self.root]  # At the initialization there is only the root node
 
 
@@ -179,7 +189,7 @@ class Workspace(object):
             # Choose leaf with lowest lower bound between leaves which
             # can be expanded
             min_l = min([leaf.lower for leaf in self.leaves \
-                         if leaf.status != MI_FATHOMED])
+                         if leaf.status != MI_NODE_FATHOMED])
             for x in self.leaves:
                 if x.lower == min_l:
                     leaf = x
@@ -190,7 +200,9 @@ class Workspace(object):
 
     def branch_leaf(self, leaf):
         """
-        Expand leaf within leaves list in branch and bound tree
+        Expand leaf within leaves list in branch and bound tree. Then solve
+        the problems in the right and left children obtaining their respective
+        lower and upper bounds
         """
         left = leaf.add_left()
         right = leaf.add_right()
@@ -205,12 +217,22 @@ class Workspace(object):
         """
         for node in self.root.nodes():
             if node.lower > self.info.u_glob:
-                node.status = MI_FATHOMED
+                node.status = MI_NODE_FATHOMED
 
     def solve(self):
         """
         Solve MIQP problem. This is the actual branch-and-bound algorithm
         """
+
+        # Get bounds from root node
+        self.root.get_bounds()
+        if self.root.status == MI_NODE_FATHOMED:
+            # Root node infeasible or unbounded
+            self.info.status = MI_INFEASIBLE_OR_UNBOUNDED
+            return
+        self.info.u_glob = self.root.lower
+        self.info.l_glob = self.root.upper
+
 
         # Loop tree until the cost function gap has disappeared
         while self.can_continue():
@@ -218,7 +240,7 @@ class Workspace(object):
             # Choose leaf to branch depending on tree exploration rule
             l = self.choose_leaf(self.settings.tree_explor_rule)
 
-            # Expand choosen leaf
+            # Expand choosen leaf, and solve children
             left, right = self.branch_leaf(l)
 
             # Update lower and upper bound
