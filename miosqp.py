@@ -191,8 +191,8 @@ class Node:
         nextvar_idx = self.work.data.i_idx[self.nextvar]
 
         # Get updated QP interval bounds
-        l_left = self.l
-        u_left = self.u
+        l_left = np.copy(self.l)
+        u_left = np.copy(self.u)
 
         # Add constraint if it make the feasible region smaller (min())
         # x <= floor(x_relaxed)
@@ -220,8 +220,8 @@ class Node:
         nextvar_idx = self.work.data.i_idx[self.nextvar]
 
         # Get updated QP interval bounds
-        l_right = self.l
-        u_right = self.u
+        l_right = np.copy(self.l)
+        u_right = np.copy(self.u)
 
         # Add constraint if it make the feasible region smaller (max())
         # ceil(x_relaxed) <= x
