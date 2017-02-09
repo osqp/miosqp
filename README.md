@@ -8,3 +8,4 @@
 -   [ ] Store solution when upper bound improves (only x, dual does not matter)
 -   [ ] Add function to deal separately with root node
 -   [ ] Add get_bounds function
+-   [ ] Add proper warm starting (from parent node)

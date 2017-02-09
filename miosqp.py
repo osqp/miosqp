@@ -23,10 +23,42 @@ MI_NODE_FATHOMED = 99
 
 class Data(object):
     """
-    Data for the relaxed qp problem
+    Data for the relaxed qp problem in the form
+
+        min    1/2 x' P x + q' x
+        s.t.   l <= A x <= u
+
+        where l = [l_orig]   and u = [u_orig] \\in R^{m + len(i_idx)}
+                  [ -inf ]           [ +inf ]
+        and A = [A_orig] \\in R^{m + len(i_idx) \\times n}
+                [  I   ]
+        are the newly introduced constraints to deal with integer variables
+
+    Attributes
+    ----------
+    n: int
+        number of variables
+    m: int
+        number of constraints in original MIQP problem
+    P: scipy sparse matrix
+        cost function matrix
+    q: numpy array
+        linear part of the cost
+    A: scipy sparse matrix
+        extended constraints matrix
+    l: numpy array
+        extended array of lower bounds
+    u: numpy array
+        extended array of upper bounds
+
+    Methods
+    -------
+    compute_obj_val
+        compute objective value
     """
+
     def __init__(self, P, q, A, l, u, i_idx):
-        # Get problem dimensions
+        # MIQP problem dimensions
         self.n = A.shape[1]
         self.m = A.shape[0]
 
@@ -58,34 +90,56 @@ class Data(object):
         # Define index of integer variables
         self.i_idx = i_idx
 
-class Info(object):
-    """
-    Branch and bound solver information
-    """
-    def __init__(self):
-        # Initialize branch and bound iterations
-        self.iter_num = 0
-        self.upper_glob = np.inf
-        self.lower_glob = -np.inf
-        self.obj_val = np.inf
-        self.status = MI_UNSOLVED
-
-class Solution(object):
-    """
-    Define best solution found so far
-    """
-    def __init__(self):
-        self.x = None
-        self.y = None
+    def compute_obj_val(self, x):
+        """
+        Compute objective value at x
+        """
+        return .5 * np.dot(x, self.P.dot(x)) + np.dot(self.q, x)
 
 class Node:
     """
     Branch-and-bound node class
+
+    Attributes
+    ----------
+    lower: double
+        node's lower bound
+    upper: double
+        node's upper bound
+    l: numpy array
+        vector of lower bounds in relaxed QP problem
+    u: numpy array
+        vector of upper bounds in relaxed QP problem
+    solver: instance of QP solver class
+        reference to QP solver  object
+    settings: Settings
+        MIQP solver settings
+    data: Data
+        MIQP problem data
+    x: numpy array
+        node's integer (possibly not feasible) MIQP solution
+    x_relaxed: numpy array
+        node's relaxed solution
+    x0: numpy array
+        warm_start primal variable
+    y0: numpy array
+        warm_start dual variable
+    status: int
+        node's status
+    nextvar: int
+        index of next variable to split upon
+    left: Node
+        left child
+    right: Node
+        right child
     """
-    def __init__(self, l, u):
+
+    def __init__(self, l, u, solver, settings, data,
+                 x0=None, y0=None):
         """
         Initialize node class
         """
+
         # Set bounds
         self.lower = -np.inf
         self.upper = np.inf
@@ -94,8 +148,31 @@ class Node:
         self.l = l
         self.u = u
 
-        # Set parent node (TODO: Need parent?)
-        # self.parent = parent
+        # Assign settings member
+        self.settings = settings
+
+        # Assign data member
+        self.data = data
+
+        # Link solver
+        self.solver = solver
+
+        # Update l and u in the solver instance
+        self.solver.update(l=self.l, u=self.u)
+
+        # Integer MIQP solution
+        self.x = None
+
+        # Relaxed MIQP solution
+        self.x_relaxed = None
+
+        # Warm-start variables
+        if x0 is None:
+            x0 = np.zeros(self.data.n)
+        if y0 is None:
+            y0 = np.zeros(self.data.m)
+        self.x0 = x0
+        self.y0 = y0
 
         # Set node status
         self.status = MI_NODE_PENDING
@@ -121,27 +198,109 @@ class Node:
 
         return nodes_list
 
+    def add_left(self):
+        """
+        Add node to the left-hand side of the tree and solve it
+        """
+
+    def add_right(self):
+        """
+        Add node to the left-hand side of the tree and solve it
+        """
+
+    def is_within_bounds(self, x):
+        """
+        Check if current solution is within bounds
+        """
+
+        # Check if it satisfies original problem bounds
+        z = self.data.A[:self.data.m,:].dot(x)
+        if any(z < self.data.l[:self.data.m]) | \
+            any(z > self.data.u[:self.data.m]):
+            return False
+
+        # If we got here, it is integer feasible
+        return True
+
+
+    def is_int_feas(self, x):
+        """
+        Check if current solution is integer feasible
+        """
+
+        # Check if integer variables are feasible up to tolerance
+        x_int = x[self.data.i_idx]
+        if any(abs(x_int - np.round(x_int))) > self.settings.eps_int_feas:
+            return False
+
+        # Check if it satisfies original problem bounds
+        z = self.data.A[:self.data.m,:].dot(x)
+        if any(z < self.data.l[:self.data.m]) | \
+            any(z > self.data.u[:self.data.m]):
+            return False
+
+        # If we got here, it is integer feasible
+        return True
+
+    def get_integer_solution(self, x):
+        """
+        Round obtained solution to integer feasibility
+        """
+        x_int = x
+        x_int[self.data.i_idx] = np.round(x[self.data.i_idx])
+        return x_int
+
+    def pick_nextvar(self, x):
+        """
+        Pick next variable to branch upon
+        """
+
+
+
+
     def get_bounds(self):
         """
         Find upper and lower bounds for the relaxed problem corresponding to this node
         """
 
-        # Update lower and upper bounds is OSQP to solve the current problem
+        # Warm start solver with currently stored solution
+        self.solver.warm_start(x=self.x0, y=self.y0)
 
         # Solve current problem
+        results = self.solver.solve()
 
         # Check if infeasible or unbounded -> Node becomes fathomed
+        if (results.info.status_val == self.solver.constant('OSQP_INFEASIBLE')) | \
+            results.info.status_val == self.solver.constant('OSQP_UNBOUNDED'):
+            self.status = MI_NODE_FATHOMED
+            return
+        else:
+            self.status = MI_NODE_SOLVED
+            self.x_relaxed = results.x
 
-        # Check if integral feasible solution
-        #       -> Node becomes fathomed
-        #       -> Objective value is updated
-        #       -> New solution is stored
+        # Check if integer feasible solution -> update bounds, status and variable x
+        if (self.is_int_feas(self.x_relaxed)):
+            self.lower = results.info.obj_val
+            self.upper = results.info.obj_val
+            self.status = MI_NODE_FATHOMED
+            self.x = self.x_relaxed
+            return
 
-        # Compute lower bound (objective value of relaxed problem)
+        # Get lower bound (objective value of relaxed problem)
+        self.lower = results.info.obj_val
 
-        # Compute upper bound (round solution, check feasibility, compute obj value)
-        # if rounde is infeasible --> infinite upper bound
+        # Compute upper bound (get integer solution)
+        self.x = self.get_integer_solution(self.x_relaxed)
 
+        #   - check feasibility
+        if self.is_within_bounds(self.x):
+            #   - if rounded is feasible --> compute new upper bound
+            self.upper = self.data.compute_obj_val(self.x)
+        else:
+            self.x = None
+
+        # Pick next variable to choose
+        self.pick_nextvar(self.x_relaxed)
 
 
 class Workspace(object):
@@ -154,34 +313,64 @@ class Workspace(object):
         miqp problem data
     settings: dictionary
         branch and bound settings
-    osqp: class
-        osqp solver class
+    qp_settings: dictionary
+        branch and bound settings
+    solver: class
+        QP solver class
     root: class
         root node of the tree
     leaves: list
         leaves in the tree
-    info: class
-        information on the algorithm progress
+
+    Other internal variables
+    ------------------------
+    iter_num: int
+        number of iterations
+    upper_glob: double
+        global upper bound
+    lower_glober: double
+        global lower bound
+    obj_val: double
+        objective value
+    status: int
+        MIQP solver status
+    x: numpy array
+        current best solution
     """
-    def __init__(self, data, settings):
+    def __init__(self, data, settings, qp_settings=None):
         self.data = data
         self.settings = settings
-        self.info = Info()           # Initialize information
-        self.solution = Solution()   # Initialize problem solution
+
+        # Setup OSQP solver instance
+        self.solver = osqp.OSQP()
+        if qp_settings is None:
+            qp_settings = {}
+        self.solver.setup(self.data.P, self.data.q, self.data.A,
+                          self.data.l, self.data.u, **qp_settings)
+
 
         # Define root node
-        self.root = Node(self.data.l, self.data.u)
+        self.root = Node(self.data.l, self.data.u, self.solver,
+                         self.settings, self.data)
         self.leaves = [self.root]  # At the initialization there is only the root node
+
+        # Define other internal variables
+        self.iter_num = 0
+        self.upper_glob = np.inf
+        self.lower_glob = -np.inf
+        self.obj_val = np.inf
+        self.status = MI_UNSOLVED
+        self.x = np.empty(self.data.n)
 
 
     def can_continue(self):
         """
         Check if the solver can continue
         """
-        check = self.info.upper_glob - self.info.lower_glob > self.settings.eps_bb_abs
-        check &= (self.info.upper_glob - self.info.lower_glob)/abs(self.info.lower_glob) > \
+        check = self.upper_glob - self.lower_glob > self.settings.eps_bb_abs
+        check &= (self.upper_glob - self.lower_glob)/abs(self.lower_glob) > \
                  self.settings.eps_bb_rel
-        check &= self.info.iter_num < self.settings.max_iter_bb
+        check &= self.iter_num < self.settings.max_iter_bb
         return check
 
 
@@ -203,11 +392,12 @@ class Workspace(object):
         return leaf
 
 
-    def branch_leaf(self, leaf):
+    def branch(self, leaf):
         """
-        Branch: Expand leaf within leaves list in branch and bound tree. Then solve
-        the problems in the right and left children obtaining their respective
-        lower and upper bounds
+        Branch
+            - Expand leaf within leaves list in branch and bound tree.
+            - Solve the relaxed problems in the right and left children
+            - Obtain new global upper and global lower bounds
         """
         left = leaf.add_left()
         right = leaf.add_right()
@@ -215,23 +405,24 @@ class Workspace(object):
         self.leaves += [left, right]
 
         # Update lower and upper bound
-        self.info.lower_glob = min([x.lower for x in self.leaves])
+        self.lower_glob = min([x.lower for x in self.leaves])
         # TODO: Can't the lower_glob update be only a min between current
         #       lower_glob and the new ones for the leaves?
         #       (just like the upper bound?)
 
         # Update upper bound
-        self.info.upper_glob = min(self.info.upper_glob, left.upper, right.upper)
+        self.upper_glob = min(self.upper_glob, left.upper, right.upper)
         # if uppwer bound improved -> Store node solution x
 
 
     def bound(self):
         """
-        Bound: prune tree nodes if their lower value is greater than the current
+        Bound
+            - prune tree nodes if their lower value is greater than the current
         upper bound
         """
         for node in self.root.nodes():
-            if node.lower > self.info.upper_glob:
+            if node.lower > self.upper_glob:
                 node.status = MI_NODE_FATHOMED
 
     def solve(self):
@@ -243,10 +434,10 @@ class Workspace(object):
         self.root.get_bounds()
         if self.root.status == MI_NODE_FATHOMED:
             # Root node infeasible or unbounded
-            self.info.status = MI_INFEASIBLE_OR_UNBOUNDED
+            self.status = MI_INFEASIBLE_OR_UNBOUNDED
             return
-        self.info.upper_glob = self.root.lower
-        self.info.lower_glob = self.root.upper
+        self.upper_glob = self.root.lower
+        self.lower_glob = self.root.upper
 
 
         # Loop tree until the cost function gap has disappeared
@@ -259,18 +450,18 @@ class Workspace(object):
             # 2) Branch leaf
             #   -> Solve children
             #   -> Update lower and upper bounds
-            self.branch_leaf(leaf)
+            self.branch(leaf)
 
             # 3) Bound
             #   -> prune nodes with lower bound above upper bound
             self.bound()
 
             # Update iteration number
-            self.info.iter_num += 1
+            self.iter_num += 1
 
             # Print progress
             print("iter %.3d   lower bound: %.5f, upper bound %.5f",
-                  self.info.iter_num, self.info.lower_glob, self.info.upper_glob)
+                  self.iter_num, self.lower_glob, self.upper_glob)
 
         return
 
