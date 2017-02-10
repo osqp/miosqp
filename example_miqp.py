@@ -6,6 +6,7 @@ import scipy as sp
 import scipy.sparse as spspa
 import numpy as np
 import mathprogbasepy as mpbpy
+import miosqp
 
 
 if __name__ == "__main__":
@@ -23,6 +24,10 @@ if __name__ == "__main__":
     i_idx = np.array([0, 3, 7])  # index of integer variables
 
     # Create MIQP problem
-    prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-    resGUROBI = prob.solve(solver=mpbpy.GUROBI)
-    resCPLEX = prob.solve(solver=mpbpy.CPLEX)
+    # prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
+    # resGUROBI = prob.solve(solver=mpbpy.GUROBI)
+    # resCPLEX = prob.solve(solver=mpbpy.CPLEX)
+
+
+    # Try miOSQP
+    miosqp.miosqp_solve(P, q, A, l, u, i_idx)

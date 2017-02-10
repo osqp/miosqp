@@ -5,11 +5,12 @@ Solve Mixed-Integer QPs using Branch and Bound and OSQP Solver
 Written by Bartolomeo Stellato, February 2017, University of Oxford
 """
 
-from __future__ import print_function
+from __future__ import print_function, division
 import osqp  # Import OSQP Solver
 import numpy as np
 # import numpy.linalg as la
 import scipy.sparse as spa
+import pdb
 
 # Solver statuses
 MI_UNSOLVED = 10
@@ -65,6 +66,7 @@ class Data(object):
         # MIQP problem dimensions
         self.n = A.shape[1]
         self.m = A.shape[0]
+        self.n_int = len(i_idx)   # Number of integer variables
 
         #
         # Extend problem with new constraints to accomodate integral constraints
@@ -81,14 +83,14 @@ class Data(object):
         u_int.fill(np.inf)
         u_int = u_int[i_idx]
 
-        self.A = spa.vstack([A, I_int])      # Extend problem constraints matrix A
-        self.l = l.append(l_int)             # Extend problem constraints
-        self.u = u.append(u_int)             # Extend problem constraints
+        self.A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+        self.l = np.append(l, l_int)         # Extend problem constraints
+        self.u = np.append(u, u_int)         # Extend problem constraints
 
         #
         # Define problem cost function
         #
-        self.P = P
+        self.P = P.tocsc()
         self.q = q
 
         # Define index of integer variables
@@ -158,7 +160,7 @@ class Node:
         if x0 is None:
             x0 = np.zeros(self.work.data.n)
         if y0 is None:
-            y0 = np.zeros(self.work.data.m)
+            y0 = np.zeros(self.work.data.m + self.work.data.n_int)
         self.x_relaxed = x0
         self.y_relaxed = y0
 
@@ -267,7 +269,7 @@ class Node:
 
         # Check if integer variables are feasible up to tolerance
         x_int = x[self.work.data.i_idx]
-        if any(abs(x_int - np.round(x_int))) > self.work.settings.eps_int_feas:
+        if any(abs(x_int - np.round(x_int))) > self.work.settings['eps_int_feas']:
             return False
 
         # If we got here, it is integer feasible
@@ -320,7 +322,7 @@ class Node:
 
         # Check if maximum number of iterations reached
         if (self.qp_status == \
-            self.work.solver.constants('OSQP_MAX_ITER_REACHED')):
+            self.work.solver.constant('OSQP_MAX_ITER_REACHED')):
             print("ERROR: Max Iter Reached!")
             from ipdb import set_trace; set_trace()
 
@@ -360,7 +362,8 @@ class Node:
             self.x = None
 
         # Pick next variable to choose
-        self.pick_nextvar(self.x_relaxed, self.work.settings.branching_rule)
+        self.pick_nextvar(self.x_relaxed,
+                          self.work.settings['branching_rule'])
 
 
 class Workspace(object):
@@ -431,15 +434,16 @@ class Workspace(object):
         """
         Check if the solver can continue
         """
-        check = self.upper_glob - self.lower_glob > self.settings.eps_bb_abs
+        check = self.upper_glob - self.lower_glob > \
+            self.settings['eps_bb_abs']
         check &= (self.upper_glob - self.lower_glob)/abs(self.lower_glob) > \
-                 self.settings.eps_bb_rel
-        check &= self.iter_num < self.settings.max_iter_bb
+                 self.settings['eps_bb_rel']
+        check &= self.iter_num < self.settings['max_iter_bb']
 
         # Get branchable leaves. Check if there is at least one to continue
         self.not_fathomed_leaves = [leaf for leaf in self.leaves \
                                     if leaf.status != MI_NODE_FATHOMED]
-        check &= self.not_fathomed_leaves
+        check &= any(self.not_fathomed_leaves)
 
         return check
 
@@ -484,6 +488,7 @@ class Workspace(object):
         upper_bounds = np.array([self.upper_glob, left.upper, right.upper])
         upper_idx = np.argmin(upper_bounds)
         self.upper_glob = upper_bounds[upper_idx]
+        pdb.set_trace()
 
         # if uppwer bound improved -> Store node solution x
         if upper_idx == 1:
@@ -518,8 +523,8 @@ class Workspace(object):
                 return
 
         # Update global bounds
-        self.upper_glob = self.root.lower
-        self.lower_glob = self.root.upper
+        self.upper_glob = self.root.upper
+        self.lower_glob = self.root.lower
 
         # Update global solution if integer feasible
         if self.root.x is not None:
@@ -529,7 +534,7 @@ class Workspace(object):
         """
         Get return status for MIQP solver
         """
-        if self.iter_num < self.settings.max_iter_bb:  # Finished
+        if self.iter_num < self.settings['max_iter_bb']:  # Finished
 
             if self.upper_glob != np.inf:
                 self.status = MI_SOLVED
@@ -562,7 +567,7 @@ class Workspace(object):
 
             # 1) Choose leaf
             #   -> Use tree exploration rule
-            leaf = self.choose_leaf(self.settings.tree_explor_rule)
+            leaf = self.choose_leaf(self.settings['tree_explor_rule'])
 
             # 2) Branch leaf
             #   -> Solve children
@@ -573,13 +578,18 @@ class Workspace(object):
             #   -> prune nodes with lower bound above upper bound
             self.bound()
 
+            # Print progress
+            print("iter %.3d   lower bound: %.5f, upper bound %.5f" %
+                  (self.iter_num, self.lower_glob, self.upper_glob))
+
             # Update iteration number
             self.iter_num += 1
 
-            # Print progress
-            print("iter %.3d   lower bound: %.5f, upper bound %.5f",
-                  self.iter_num, self.lower_glob, self.upper_glob)
+            # Stop
+            # pdb.set_trace()
 
+
+        print("Done!")
         # Get final status
         self.get_return_status()
 
@@ -602,12 +612,15 @@ def miosqp_solve(P, q, A, l, u, i_idx):
                 'branching_rule': 0}           # branching rule
                                                #   [0] max fractional part
 
+    qp_settings = {'rho': 0.1,
+                   'polishing': False,
+                   'verbose': False}
 
     # Create data class instance
     data = Data(P, q, A, l, u, i_idx)
 
     # Create Workspace
-    work = Workspace(data, settings)
+    work = Workspace(data, settings, qp_settings)
 
     # Solve problem
     work.solve()
