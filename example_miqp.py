@@ -5,14 +5,15 @@ from __future__ import division
 import scipy as sp
 import scipy.sparse as spspa
 import numpy as np
+import numpy.linalg as la
 import mathprogbasepy as mpbpy
 import miosqp
 
 
 if __name__ == "__main__":
     # Random Example
-    n = 30
-    m = 50
+    n = 10
+    m = 20
     # Generate random Matrices
     Pt = sp.randn(n, n)
     P = spspa.csc_matrix(np.dot(Pt.T, Pt))
@@ -21,13 +22,27 @@ if __name__ == "__main__":
     u = 3 + sp.randn(m)
     # l = u
     l = -3 + sp.randn(m)
-    i_idx = np.array([0, 3, 7])  # index of integer variables
+    i_idx = np.array([0, 2, 3, 7])  # index of integer variables
 
     # Create MIQP problem
-    # prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-    # resGUROBI = prob.solve(solver=mpbpy.GUROBI)
+    prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
+    resGUROBI = prob.solve(solver=mpbpy.GUROBI)
     # resCPLEX = prob.solve(solver=mpbpy.CPLEX)
 
 
     # Try miOSQP
-    miosqp.miosqp_solve(P, q, A, l, u, i_idx)
+    work = miosqp.miosqp_solve(P, q, A, l, u, i_idx)
+
+
+
+    print("\n\n\nDifference solutions miOSQP and GUROBI               %.4e" % la.norm(resGUROBI.x - work.x))
+
+    print("miOSQP")
+    print("------")
+    print("Objective value       %.4e" % work.upper_glob)
+    print("Elapsed time          %.4e\n" % work.run_time)
+
+    print("GUROBI")
+    print("------")
+    print("Objective value       %.4e" % resGUROBI.objval)
+    print("Elapsed time          %.4e" % resGUROBI.cputime)

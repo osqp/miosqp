@@ -10,7 +10,10 @@ import osqp  # Import OSQP Solver
 import numpy as np
 # import numpy.linalg as la
 import scipy.sparse as spa
-import pdb
+from time import time
+
+
+import ipdb
 
 # Solver statuses
 MI_UNSOLVED = 10
@@ -210,6 +213,11 @@ class Node:
         u_left[constr_idx] = min(u_left[constr_idx],
                                  np.floor(self.x_relaxed[nextvar_idx]))
 
+        # Constrain it with lower bound
+        u_left[constr_idx] = max(u_left[constr_idx], l_left[constr_idx])
+
+        # print("Branch left: x[%i] <= %.4f\n" % (nextvar_idx, u_left[constr_idx]))
+
         if self.left is None:
             # Create node with new bounds
             self.left = Node(l_left, u_left, self.work,
@@ -238,6 +246,11 @@ class Node:
         # ceil(x_relaxed) <= x
         l_right[constr_idx] = max(l_right[constr_idx],
                                  np.ceil(self.x_relaxed[nextvar_idx]))
+
+        # Constrain it with upper bound
+        l_right[constr_idx] = min(l_right[constr_idx], u_right[constr_idx])
+
+        # print("Branch right: %.4f <= x[%i] \n" % (u_right[constr_idx], nextvar_idx))
 
         if self.right is None:
             # Create node with new bounds
@@ -279,7 +292,7 @@ class Node:
         """
         Round obtained solution to integer feasibility
         """
-        x_int = x
+        x_int = np.copy(x)
         x_int[self.work.data.i_idx] = np.round(x[self.work.data.i_idx])
         return x_int
 
@@ -324,7 +337,7 @@ class Node:
         if (self.qp_status == \
             self.work.solver.constant('OSQP_MAX_ITER_REACHED')):
             print("ERROR: Max Iter Reached!")
-            from ipdb import set_trace; set_trace()
+            ipdb.set_trace()
 
         # Check if infeasible or unbounded -> Node becomes fathomed
         if (self.qp_status == \
@@ -395,8 +408,6 @@ class Workspace(object):
         global upper bound
     lower_glober: double
         global lower bound
-    obj_val: double
-        objective value
     status: int
         MIQP solver status
     x: numpy array
@@ -425,7 +436,6 @@ class Workspace(object):
         self.iter_num = 1
         self.upper_glob = np.inf
         self.lower_glob = -np.inf
-        self.obj_val = np.inf
         self.status = MI_UNSOLVED
         self.x = np.empty(self.data.n)
 
@@ -488,7 +498,6 @@ class Workspace(object):
         upper_bounds = np.array([self.upper_glob, left.upper, right.upper])
         upper_idx = np.argmin(upper_bounds)
         self.upper_glob = upper_bounds[upper_idx]
-        pdb.set_trace()
 
         # if uppwer bound improved -> Store node solution x
         if upper_idx == 1:
@@ -554,10 +563,23 @@ class Workspace(object):
                     self.status = MI_UNBOUNDED
 
 
+    def print_headline(self):
+        """
+        Print headline
+        """
+        print("     Nodes      |     Current Node     |   Objective Bounds   |     Work")
+        print("  Expr Unexplr  |  Obj  Depth  IntInf  |  Lower  Upper   Gap  |  Iter  Time")
+
+
+
+
     def solve(self):
         """
         Solve MIQP problem. This is the actual branch-and-bound algorithm
         """
+
+        # Print header
+        self.print_headline()
 
         # Initialize root node and get bounds
         self.init_root()
@@ -601,6 +623,9 @@ def miosqp_solve(P, q, A, l, u, i_idx):
     Solve MIQP problem using MIOSQP solver
     """
 
+    # Start timer
+    start = time()
+
 
     # Define problem settings
     settings = {'eps_bb_abs': 1e-03,           # absolute convergence tolerance
@@ -612,8 +637,13 @@ def miosqp_solve(P, q, A, l, u, i_idx):
                 'branching_rule': 0}           # branching rule
                                                #   [0] max fractional part
 
-    qp_settings = {'rho': 0.1,
+    qp_settings = {'eps_abs': 1e-04,
+                   'eps_rel': 1e-04,
+                   'eps_inf': 1e-03,
+                   'rho': 0.1,
+                   'sigma': 0.01,
                    'polishing': False,
+                   'max_iter': 5000,
                    'verbose': False}
 
     # Create data class instance
@@ -624,3 +654,9 @@ def miosqp_solve(P, q, A, l, u, i_idx):
 
     # Solve problem
     work.solve()
+
+    # Stop
+    stop = time()
+    work.run_time = stop - start
+    print("Elapsed time: %.4es" % work.run_time)
+    return work
