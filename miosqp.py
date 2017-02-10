@@ -14,7 +14,11 @@ import scipy.sparse as spa
 # Solver statuses
 MI_UNSOLVED = 10
 MI_SOLVED = 11
-MI_INFEASIBLE_OR_UNBOUNDED = 9
+MI_INFEASIBLE = 9
+MI_UNBOUNDED = 8
+MI_MAX_ITER_FEASIBLE = 12
+MI_MAX_ITER_UNSOLVED = 12
+
 
 # Nodes statuses
 MI_NODE_PENDING = 100
@@ -118,6 +122,8 @@ class Node:
         node's relaxed solution. At the beginning it is the warm-starting value y0
     status: int
         node's status
+    qp_status: int
+        qp solver return status
     nextvar: int
         index of next variable to split upon (position within i_idx vector)
     left: Node
@@ -158,6 +164,9 @@ class Node:
 
         # Set node status
         self.status = MI_NODE_PENDING
+
+        # Set QP solver return status
+        self.qp_status = self.work.solver.constant('OSQP_UNSOLVED')
 
         # Next variable to split on
         self.nextvar = None
@@ -272,7 +281,7 @@ class Node:
         x_int[self.work.data.i_idx] = np.round(x[self.work.data.i_idx])
         return x_int
 
-    def pick_nextvar(self, x):
+    def pick_nextvar(self, x, branching_rule):
         """
         Pick next variable to branch upon
         """
@@ -280,7 +289,7 @@ class Node:
         # Part of solution vector that is supposed to be integer
         x_int = x[self.work.data.i_idx]
 
-        if self.work.settings['branching_rule'] == 0:
+        if branching_rule == 0:
 
             # Get vector of fractional parts
             fract_part = abs(x_int - np.round(x_int))
@@ -306,16 +315,19 @@ class Node:
         # Solve current problem
         results = self.work.solver.solve()
 
+        # Store solver status
+        self.qp_status = results.info.status_val
+
         # Check if maximum number of iterations reached
-        if (results.info.status_val == \
+        if (self.qp_status == \
             self.work.solver.constants('OSQP_MAX_ITER_REACHED')):
             print("ERROR: Max Iter Reached!")
             from ipdb import set_trace; set_trace()
 
         # Check if infeasible or unbounded -> Node becomes fathomed
-        if (results.info.status_val == \
+        if (self.qp_status == \
             self.work.solver.constant('OSQP_INFEASIBLE')) | \
-            results.info.status_val == \
+            self.qp_status == \
             self.work.solver.constant('OSQP_UNBOUNDED'):
             self.status = MI_NODE_FATHOMED
             return
@@ -348,7 +360,7 @@ class Node:
             self.x = None
 
         # Pick next variable to choose
-        self.pick_nextvar(self.x_relaxed)
+        self.pick_nextvar(self.x_relaxed, self.work.settings.branching_rule)
 
 
 class Workspace(object):
@@ -369,6 +381,8 @@ class Workspace(object):
         root node of the tree
     leaves: list
         leaves in the tree
+    non_fathomed_leaves: list
+        leaves that can still be branched
 
     Other internal variables
     ------------------------
@@ -399,10 +413,13 @@ class Workspace(object):
 
         # Define root node
         self.root = Node(self.data.l, self.data.u, self)
-        self.leaves = [self.root]  # At the initialization there is only the root node
+
+        # Define leaves at the beginning (only root)
+        self.leaves = [self.root]
+        self.not_fathomed_leaves = [self.root]
 
         # Define other internal variables
-        self.iter_num = 0
+        self.iter_num = 1
         self.upper_glob = np.inf
         self.lower_glob = -np.inf
         self.obj_val = np.inf
@@ -418,6 +435,12 @@ class Workspace(object):
         check &= (self.upper_glob - self.lower_glob)/abs(self.lower_glob) > \
                  self.settings.eps_bb_rel
         check &= self.iter_num < self.settings.max_iter_bb
+
+        # Get branchable leaves. Check if there is at least one to continue
+        self.not_fathomed_leaves = [leaf for leaf in self.leaves \
+                                    if leaf.status != MI_NODE_FATHOMED]
+        check &= self.not_fathomed_leaves
+
         return check
 
 
@@ -429,8 +452,8 @@ class Workspace(object):
         if tree_explor_rule == 0:
             # Choose leaf with lowest lower bound between leaves which
             # can be expanded
-            min_lower = min([leaf.lower for leaf in self.leaves \
-                            if leaf.status != MI_NODE_FATHOMED])
+            min_lower = min([leaf.lower for leaf in \
+                             self.not_fathomed_leaves])
             for x in self.leaves:
                 if x.lower == min_lower:
                     leaf = x
@@ -458,12 +481,14 @@ class Workspace(object):
         #       (just like the upper bound?)
 
         # Update upper bound
-        self.upper_glob = min(self.upper_glob, left.upper, right.upper)
+        upper_bounds = np.array([self.upper_glob, left.upper, right.upper])
+        upper_idx = np.argmin(upper_bounds)
+        self.upper_glob = upper_bounds[upper_idx]
 
         # if uppwer bound improved -> Store node solution x
-        if abs(self.upper_glob - left.upper) < 1e-08:
+        if upper_idx == 1:
             self.x = left.x # Update solution
-        elif abs(self.upper_glob - right.upper) < 1e-08:
+        elif upper_idx == 2:
             self.x = right.x # Update solution
 
 
@@ -477,20 +502,60 @@ class Workspace(object):
             if node.lower > self.upper_glob:
                 node.status = MI_NODE_FATHOMED
 
+    def init_root(self):
+        """
+        Initialize root node and get bounds
+        """
+        # Get bounds from root node
+        self.root.get_bounds()
+        if self.root.status == MI_NODE_FATHOMED:
+            # Root node infeasible or unbounded
+            if self.root.qp_status == self.solver.constant('OSQP_INFEASIBLE'):
+                self.status = MI_INFEASIBLE
+                return
+            if self.root.qp_status == self.solver.constant('OSQP_UNBOUNDED'):
+                self.status = MI_UNBOUNDED
+                return
+
+        # Update global bounds
+        self.upper_glob = self.root.lower
+        self.lower_glob = self.root.upper
+
+        # Update global solution if integer feasible
+        if self.root.x is not None:
+            self.x = self.root.x
+
+    def get_return_status(self):
+        """
+        Get return status for MIQP solver
+        """
+        if self.iter_num < self.settings.max_iter_bb:  # Finished
+
+            if self.upper_glob != np.inf:
+                self.status = MI_SOLVED
+            else:
+                if self.upper_glob >= 0:  # +inf
+                    self.status = MI_INFEASIBLE
+                else:                     # -inf
+                    self.status = MI_UNBOUNDED
+
+        else:  # Hit maximum number of iterations
+            if self.upper_glob != np.inf:
+                self.status = MI_MAX_ITER_FEASIBLE
+            else:
+                if self.upper_glob >= 0:  # +inf
+                    self.status = MI_MAX_ITER_UNSOLVED
+                else:                     # -inf
+                    self.status = MI_UNBOUNDED
+
+
     def solve(self):
         """
         Solve MIQP problem. This is the actual branch-and-bound algorithm
         """
 
-        # Get bounds from root node
-        self.root.get_bounds()
-        if self.root.status == MI_NODE_FATHOMED:
-            # Root node infeasible or unbounded
-            self.status = MI_INFEASIBLE_OR_UNBOUNDED
-            return
-        self.upper_glob = self.root.lower
-        self.lower_glob = self.root.upper
-
+        # Initialize root node and get bounds
+        self.init_root()
 
         # Loop tree until the cost function gap has disappeared
         while self.can_continue():
@@ -514,6 +579,9 @@ class Workspace(object):
             # Print progress
             print("iter %.3d   lower bound: %.5f, upper bound %.5f",
                   self.iter_num, self.lower_glob, self.upper_glob)
+
+        # Get final status
+        self.get_return_status()
 
         return
 
