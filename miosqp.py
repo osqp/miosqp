@@ -115,6 +115,8 @@ class Node:
         node's lower bound
     upper: double
         node's upper bound
+    n: int
+        depth in the tree
     l: numpy array
         vector of lower bounds in relaxed QP problem
     u: numpy array
@@ -139,7 +141,7 @@ class Node:
         MIQP solver workspace
     """
 
-    def __init__(self, l, u, work,
+    def __init__(self, l, u, n, work,
                  x0=None, y0=None):
         """
         Initialize node class
@@ -148,6 +150,9 @@ class Node:
         # Set bounds
         self.lower = -np.inf
         self.upper = np.inf
+
+        # Set depth
+        self.n = n
 
         # Set l and u for relaxed QP problem
         self.l = l
@@ -220,7 +225,7 @@ class Node:
 
         if self.left is None:
             # Create node with new bounds
-            self.left = Node(l_left, u_left, self.work,
+            self.left = Node(l_left, u_left, self.n + 1, self.work,
                              self.x_relaxed, self.y_relaxed)
             # Get bounds from that node
             self.left.get_bounds()
@@ -254,7 +259,7 @@ class Node:
 
         if self.right is None:
             # Create node with new bounds
-            self.right = Node(l_right, u_right, self.work,
+            self.right = Node(l_right, u_right, self.n + 1, self.work,
                               self.x_relaxed, self.y_relaxed)
             # Get bounds from that node
             self.right.get_bounds()
@@ -404,6 +409,10 @@ class Workspace(object):
     ------------------------
     iter_num: int
         number of iterations
+    explored_nodes: int
+        number of nodes explored
+    run_time: double
+        runtime of the algorithm
     upper_glob: double
         global upper bound
     lower_glober: double
@@ -426,7 +435,7 @@ class Workspace(object):
 
 
         # Define root node
-        self.root = Node(self.data.l, self.data.u, self)
+        self.root = Node(self.data.l, self.data.u, 0, self)
 
         # Define leaves at the beginning (only root)
         self.leaves = [self.root]
@@ -464,13 +473,17 @@ class Workspace(object):
         depending on branch_rule
         """
         if tree_explor_rule == 0:
-            # Choose leaf with lowest lower bound between leaves which
-            # can be expanded
-            min_lower = min([leaf.lower for leaf in \
-                             self.not_fathomed_leaves])
-            for x in self.leaves:
-                if x.lower == min_lower:
-                    leaf = x
+            # Depth first: Choose leaf with highest depth
+            leaf = np.argmax([leaf.n for leaf in self.leaves])
+
+            # Old stuff
+            # # Choose leaf with lowest lower bound between leaves which
+            # # can be expanded
+            # min_lower = min([leaf.lower for leaf in \
+            #                  self.not_fathomed_leaves])
+            # for x in self.leaves:
+            #     if x.lower == min_lower:
+            #         leaf = x
         else:
             raise ValueError('Tree exploring strategy not recognized')
         return leaf
@@ -571,7 +584,12 @@ class Workspace(object):
         print("  Expr Unexplr  |  Obj  Depth  IntInf  |  Lower  Upper   Gap  |  Iter  Time")
 
 
-
+    def print_progress(self, leaf):
+        """
+        Print progress at each iteration
+        """
+        print("iter %.3d   lower bound: %.5f, upper bound %.5f" %
+              (self.iter_num, self.lower_glob, self.upper_glob))
 
     def solve(self):
         """
@@ -585,7 +603,7 @@ class Workspace(object):
         self.init_root()
 
         # Loop tree until the cost function gap has disappeared
-        while self.can_continue():
+        while any(self.leaves):
 
             # 1) Choose leaf
             #   -> Use tree exploration rule
@@ -601,8 +619,7 @@ class Workspace(object):
             self.bound()
 
             # Print progress
-            print("iter %.3d   lower bound: %.5f, upper bound %.5f" %
-                  (self.iter_num, self.lower_glob, self.upper_glob))
+            self.print_progress(leaf)
 
             # Update iteration number
             self.iter_num += 1
@@ -633,7 +650,7 @@ def miosqp_solve(P, q, A, l, u, i_idx):
                 'eps_int_feas': 1e-03,         # integer feasibility tolerance
                 'max_iter_bb': 1000,           # maximum number of iterations
                 'tree_explor_rule': 0,         # tree exploration rule
-                                               #   [0] lowest lower bound
+                                               #   [0] depth first
                 'branching_rule': 0}           # branching rule
                                                #   [0] max fractional part
 
