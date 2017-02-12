@@ -1,6 +1,14 @@
 # miOSQP
 
 
+
+
+## TODO (Rewrite with heap to complete)
+-   [ ] Rewrite printing functions (print progress!)
+-   [ ] Cleanup unused functions/variables
+-   [ ] Write comments and descriptions of objects properly
+-   [ ] Test!
+
 ## TODO
 
 -   [x] Add functions: add_left and add_right for each node
