@@ -13,7 +13,7 @@ import scipy.sparse as spa
 from time import time
 
 
-import ipdb
+import pdb
 
 # Solver statuses
 MI_UNSOLVED = 10
@@ -134,18 +134,14 @@ class Node:
         QP solver object instance
     """
 
-    def __init__(self, data, l, u, n, solver,
+    def __init__(self, data, l, u, solver, depth=0, lower=None,
                  x0=None, y0=None):
         """
         Initialize node class
         """
 
-        # Set bounds
-        self.lower = -np.inf
-        # self.upper = np.inf
-
-        # Set depth
-        self.n = n
+        # Assign data structure
+        self.data = data
 
         # Set l and u for relaxed QP problem
         self.l = l
@@ -154,8 +150,14 @@ class Node:
         # Assign solver
         self.solver = solver
 
-        # Assign data structure
-        self.data = data
+        # Set depth
+        self.depth = depth
+
+        # Set bounds
+        if lower==None:
+            self.lower = -np.inf
+        else:
+            self.lower = lower
 
         # Warm-start variables which are also the relaxed solutions
         if x0 is None:
@@ -263,7 +265,7 @@ class Node:
         if (self.status == \
             self.solver.constant('OSQP_MAX_ITER_REACHED')):
             print("ERROR: Max Iter Reached!")
-            ipdb.set_trace()
+            pdb.set_trace()
 
         # Store solver solution
         self.x = results.x
@@ -276,7 +278,7 @@ class Node:
         # if (self.status == \
         #     self.work.solver.constant('OSQP_MAX_ITER_REACHED')):
         #     print("ERROR: Max Iter Reached!")
-        #     ipdb.set_trace()
+        #     pdb.set_trace()
 
         # # Check if infeasible or unbounded -> Node becomes fathomed
         # if (self.status == \
@@ -365,13 +367,6 @@ class Workspace(object):
         self.solver.setup(self.data.P, self.data.q, self.data.A,
                           self.data.l, self.data.u, **qp_settings)
 
-
-        # Define root node
-        self.root = Node(self.data, self.data.l, self.data.u, 0, self.solver)
-
-        # Define leaves at the beginning (only root)
-        self.leaves = [self.root]
-
         # Define other internal variables
         self.iter_num = 1
         self.upper_glob = np.inf
@@ -379,6 +374,11 @@ class Workspace(object):
         self.status = MI_UNSOLVED
         self.x = np.empty(self.data.n)
 
+        # Define root node
+        self.root = Node(self.data, self.data.l, self.data.u, self.solver)
+
+        # Define leaves at the beginning (only root)
+        self.leaves = [self.root]
 
     def can_continue(self):
         """
@@ -412,7 +412,8 @@ class Workspace(object):
         """
         if tree_explor_rule == 0:
             # Depth first: Choose leaf with highest depth
-            leaf = np.argmax([leaf.n for leaf in self.leaves])
+            leaf_idx = np.argmax([leaf.depth for leaf in self.leaves])
+            leaf = self.leaves[leaf_idx]
             # Old stuff
             # # Choose leaf with lowest lower bound between leaves which
             # # can be expanded
@@ -424,6 +425,7 @@ class Workspace(object):
         else:
             raise ValueError('Tree exploring strategy not recognized')
 
+        # pdb.set_trace()
         # Remove leaf from the list of leaves
         self.leaves.remove(leaf)
 
@@ -490,8 +492,9 @@ class Workspace(object):
         # print("Branch left: x[%i] <= %.4f\n" % (leaf.nextvar_idx, u_left[leaf.constr_idx]))
 
         # Create new leaf
-        new_leaf = Node(l_left, u_left, leaf.n + 1, self.solver,
-                        leaf.x, leaf.y)
+        new_leaf = Node(self.data, l_left, u_left, self.solver,
+                        depth=leaf.depth + 1, lower=leaf.lower,
+                        x0=leaf.x, y0=leaf.y)
 
         # Add leaf to the leaves list
         self.leaves.append(new_leaf)
@@ -516,8 +519,9 @@ class Workspace(object):
         # print("Branch right: %.4f <= x[%i] \n" % (u_right[leaf.constr_idx], leaf.nextvar_idx))
 
         # Create new leaf
-        new_leaf = Node(l_right, u_right, leaf.n + 1, self.solver,
-                        leaf.x, leaf.y)
+        new_leaf = Node(self.data, l_right, u_right, self.solver,
+                        depth=leaf.depth + 1, lower=leaf.lower,
+                        x0=leaf.x, y0=leaf.y)
 
         # Add leaf to the leaves list
         self.leaves.append(new_leaf)
@@ -569,7 +573,7 @@ class Workspace(object):
 
         # Check if integer variables are feasible up to tolerance
         x_int = x[self.data.i_idx]
-        if any(abs(x_int - np.round(x_int))) > self.settings['eps_int_feas']:
+        if any(abs(x_int - np.round(x_int)) > self.settings['eps_int_feas']):
             return False
 
         # If we got here, it is integer feasible
@@ -620,24 +624,25 @@ class Workspace(object):
             self.prune()
             return
 
-
         # 4) If fractional, get integer solution using heuristic.
         #    If integer solution is within bounds (feasible), then:
         #    - compute objective value at integer x
         #    If objective value improves the upper bound
         #       - update best upper bound
-        #        - prune all leaves with lower bound greater than current one
+        #       - prune all leaves with lower bound greater than current one
         x_int = self.get_integer_solution(leaf.x)
         if self.is_within_bounds(x_int, leaf):
             obj_int = self.data.compute_obj_val(x_int)
             if obj_int < self.upper_glob:
                 self.upper_glob = obj_int
                 self.prune()
-            return
 
 
         # 5) If we got here, branch current leaf producing two children
         self.branch(leaf)
+
+        # 6) Update lower bound with minimum between lower bounds
+        self.lower_glob = min([leaf.lower for leaf in self.leaves])
 
     def branch(self, leaf):
         """
@@ -647,7 +652,7 @@ class Workspace(object):
         # Branch obtaining two children and add to leaves list
 
         # Pick next variable to branch upon
-        self.pick_nextvar(leaf.x)
+        self.pick_nextvar(leaf)
 
         # Add left node to the leaves list
         self.add_left(leaf)
@@ -707,16 +712,16 @@ class Workspace(object):
         """
         Print headline
         """
-        print("     Nodes      |     Current Node     |   Objective Bounds   |     Work")
-        print("  Expr Unexplr  |  Obj  Depth  IntInf  |  Lower  Upper   Gap  |  Iter  Time")
+        print("     Nodes      |           Current Node        |             Objective Bounds           ")
+        print("Explr\tUnexplr\t|      Obj\tDepth\tIntInf  |    Lower\t   Upper\t    Gap  ")
 
 
-    # def print_progress(self, leaf):
-    #     """
-    #     Print progress at each iteration
-    #     """
-    #     print("iter %.3d   lower bound: %.5f, upper bound %.5f" %
-    #           (self.iter_num, self.lower_glob, self.upper_glob))
+    def print_progress(self, leaf):
+        """
+        Print progress at each iteration
+        """
+        print("%4d\t%4d\t  %10.2e\t%4d\t%5d\t  %10.2e\t%10.2e\t%8.2f%%" %
+              (self.iter_num, len(self.leaves), leaf.lower,  leaf.depth, 1000, self.lower_glob, self.upper_glob, (self.upper_glob - self.lower_glob)/abs(self.upper_glob)*100))
 
     def solve(self):
         """
@@ -740,17 +745,6 @@ class Workspace(object):
 
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
-
-
-            # OLD STUFF
-            # 2) Branch leaf
-            #   -> Solve children
-            #   -> Update lower and upper bounds
-            # self.branch(leaf)
-
-            # 3) Bound
-            #   -> prune nodes with lower bound above upper bound
-            # self.bound()
 
             # Print progress
             self.print_progress(leaf)

@@ -8,12 +8,16 @@ import numpy as np
 import numpy.linalg as la
 import mathprogbasepy as mpbpy
 import miosqp
-
+reload(miosqp)
 
 if __name__ == "__main__":
     # Random Example
     n = 10
     m = 20
+
+    # Reset random number generator
+    np.random.seed(4)
+
     # Generate random Matrices
     Pt = sp.randn(n, n)
     P = spspa.csc_matrix(np.dot(Pt.T, Pt))
