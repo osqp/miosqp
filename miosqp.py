@@ -6,15 +6,19 @@ Written by Bartolomeo Stellato, February 2017, University of Oxford
 """
 
 from __future__ import print_function, division
-# import osqp  # Import OSQP Solver
-import osqppurepy as osqp # Import OSQP Solver implementation in Pure Python
+import osqp  # Import OSQP Solver
+# import osqppurepy as osqp # Import OSQP Solver implementation in Pure Python
 import numpy as np
 # import numpy.linalg as la
 import scipy.sparse as spa
 from time import time
 
 
-import pdb
+# Plotting
+import matplotlib.pylab as plt
+
+
+import ipdb
 
 # Solver statuses
 MI_UNSOLVED = 10
@@ -113,8 +117,10 @@ class Node:
         node's lower bound
     upper: double
         node's upper bound
-    n: int
+    depth: int
         depth in the tree
+    intinf: int
+        number of fractional elements which are supposed to be integer
     l: numpy array
         vector of lower bounds in relaxed QP problem
     u: numpy array
@@ -148,11 +154,15 @@ class Node:
         # Set depth
         self.depth = depth
 
-        # Set bounds
+        # Set bound
         if lower==None:
             self.lower = -np.inf
         else:
             self.lower = lower
+
+
+        # Number of integer infeasible variables
+        self.intinf = None
 
         # Warm-start variables which are also the relaxed solutions
         if x0 is None:
@@ -191,7 +201,7 @@ class Node:
         if (self.status == \
             self.solver.constant('OSQP_MAX_ITER_REACHED')):
             print("ERROR: Max Iter Reached!")
-            pdb.set_trace()
+            ipdb.set_trace()
 
         # Store solver solution
         self.x = results.x
@@ -244,8 +254,9 @@ class Workspace(object):
 
         # Setup OSQP solver instance
         self.solver = osqp.OSQP()
-        if qp_settings is None:
-            qp_settings = {}
+        self.qp_settings = qp_settings
+        if self.qp_settings is None:
+            self.qp_settings = {}
         self.solver.setup(self.data.P, self.data.q, self.data.A,
                           self.data.l, self.data.u, **qp_settings)
 
@@ -380,23 +391,27 @@ class Workspace(object):
         """
         Check if solution x is within bounds of leaf
         """
-
         # Check if it satisfies current l and u bounds
         z = self.data.A.dot(x)
-        if any(z < leaf.l) | any(z > leaf.u):
+        if any(z < leaf.l - self.qp_settings['eps_abs']) | \
+            any(z > leaf.u + self.qp_settings['eps_abs']):
             return False
 
         # If we got here, it is integer feasible
         return True
 
-    def is_int_feas(self, x):
+    def is_int_feas(self, x, leaf):
         """
         Check if current solution is integer feasible
         """
 
         # Check if integer variables are feasible up to tolerance
         x_int = x[self.data.i_idx]
-        if any(abs(x_int - np.round(x_int)) > self.settings['eps_int_feas']):
+
+        # Vector of booleans: each elm is true if it is integer
+        is_int_vec = abs(x_int - np.round(x_int)) > self.settings['eps_int_feas']
+        leaf.intinf = np.sum(is_int_vec)
+        if leaf.intinf > 0:
             return False
 
         # If we got here, it is integer feasible
@@ -426,6 +441,7 @@ class Workspace(object):
         # 1) If infeasible or unbounded, then return (prune)
         if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
             leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
+            ipdb.set_trace()
             return
 
         # 2) If lower bound is greater than upper bound, then return (prune)
@@ -436,12 +452,10 @@ class Workspace(object):
         #   - update best solution
         #   - update best upper bound
         #   - prune all leaves with lower bound greater than best upper bound
-        if (self.is_int_feas(leaf.x) and \
-            self.is_within_bounds(leaf.x, leaf)):
+        if (self.is_int_feas(leaf.x, leaf)):
             # Update best solution so far
             self.x = leaf.x
             # Update bounds
-            self.lower_glob = leaf.lower
             self.upper_glob = leaf.lower
             # Prune all nodes
             self.prune()
@@ -524,13 +538,30 @@ class Workspace(object):
         else:
             gap = "%8.2f%%" % ((self.upper_glob - self.lower_glob)/abs(self.upper_glob)*100)
 
-        print("%4d\t%4d\t  %10.2e\t%4d\t%5d\t  %10.2e\t%10.2e\t%s" %
-              (self.iter_num, len(self.leaves), leaf.lower,  leaf.depth, 1000, self.lower_glob, self.upper_glob, gap))
+        if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
+            leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
+            obj = np.inf
+        else:
+            obj = leaf.lower
+
+        if leaf.intinf is None:
+            intinf = "  ---"
+        else:
+            intinf = "%5d" % leaf.intinf
+
+
+
+        print("%4d\t%4d\t  %10.2e\t%4d\t%s\t  %10.2e\t%10.2e\t%s" %
+              (self.iter_num, len(self.leaves), obj,  leaf.depth, intinf, self.lower_glob, self.upper_glob, gap))
 
     def solve(self):
         """
         Solve MIQP problem. This is the actual branch-and-bound algorithm
         """
+
+        # Store bounds behavior for plotting
+        lowers = []
+        uppers = []
 
         # Print header
         self.print_headline()
@@ -557,10 +588,27 @@ class Workspace(object):
             # Update iteration number
             self.iter_num += 1
 
-        print("Done!")
+            # Store bounds for plotting
+            lowers.append(self.lower_glob)
+            uppers.append(self.upper_glob)
 
         # Get final status
         self.get_return_status()
+
+
+        # Print bounds
+        # plt.figure(1)
+        # plt.cla()
+        # plt.plot(uppers)
+        # plt.plot(lowers)
+        # plt.legend(('upper bound', 'lower bound'))
+        # plt.xlabel('iteration')
+        # plt.ylabel('bounds')
+        # plt.title('Global lower and upper bounds')
+        # plt.grid()
+        # plt.show(block=False)
+
+        # ipdb.set_trace()
 
         return
 

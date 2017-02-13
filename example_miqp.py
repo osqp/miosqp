@@ -16,6 +16,7 @@ if __name__ == "__main__":
     m = 20
 
     # Reset random number generator
+    # np.random.seed(3)  # Working with few iters
     # np.random.seed(4)  # Working with few iters
     np.random.seed(5)
 
