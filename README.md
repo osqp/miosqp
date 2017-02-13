@@ -4,10 +4,10 @@
 
 
 ## TODO (Rewrite with heap to complete)
--   [ ] Rewrite printing functions (print progress!)
+-   [ ] Add proper infeasibility test
+-   [ ] Add number of integer infeasible variables to printing function
 -   [ ] Cleanup unused functions/variables
 -   [ ] Write comments and descriptions of objects properly
--   [ ] Test!
 
 ## TODO
 

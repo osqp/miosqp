@@ -6,7 +6,8 @@ Written by Bartolomeo Stellato, February 2017, University of Oxford
 """
 
 from __future__ import print_function, division
-import osqp  # Import OSQP Solver
+# import osqp  # Import OSQP Solver
+import osqppurepy as osqp # Import OSQP Solver implementation in Pure Python
 import numpy as np
 # import numpy.linalg as la
 import scipy.sparse as spa
@@ -23,14 +24,8 @@ MI_UNBOUNDED = 8
 MI_MAX_ITER_FEASIBLE = 12
 MI_MAX_ITER_UNSOLVED = 13
 
-
-# Nodes statuses
-# MI_NODE_PENDING = 100
-# MI_NODE_SOLVED = 101
-# MI_NODE_SOLVED_INT_FEAS = 102
-# MI_NODE_INF_OR_UNB = 102
-
-# MI_NODE_FATHOMED = 99
+# Printing interval constant
+PRINT_INTERVAL = 1
 
 class Data(object):
     """
@@ -175,75 +170,6 @@ class Node:
         self.constr_idx = None    # Index of constraint to change for branching
                                   #     on next variable
 
-    # def add_left(self):
-    #     """
-    #     Add node to the left-hand side of the tree and solve it
-    #     """
-    #     # Get next variable constraint idx
-    #     constr_idx = self.work.data.m + self.nextvar
-    #
-    #     # Get next variable idx
-    #     nextvar_idx = self.work.data.i_idx[self.nextvar]
-    #
-    #     # Get updated QP interval bounds
-    #     l_left = np.copy(self.l)
-    #     u_left = np.copy(self.u)
-    #
-    #     # Add constraint if it make the feasible region smaller (min())
-    #     # x <= floor(x_relaxed)
-    #     u_left[constr_idx] = min(u_left[constr_idx],
-    #                              np.floor(self.x_relaxed[nextvar_idx]))
-    #
-    #     # Constrain it with lower bound
-    #     u_left[constr_idx] = max(u_left[constr_idx], l_left[constr_idx])
-    #
-    #     # print("Branch left: x[%i] <= %.4f\n" % (nextvar_idx, u_left[constr_idx]))
-    #
-    #     if self.left is None:
-    #         # Create node with new bounds
-    #         self.left = Node(l_left, u_left, self.n + 1, self.work,
-    #                          self.x_relaxed, self.y_relaxed)
-    #         # Get bounds from that node
-    #         self.left.solve()
-    #
-    #     return self.left
-    #
-    #
-    # def add_right(self):
-    #     """
-    #     Add node to the right-hand side of the tree and solve it
-    #     """
-    #     # Get next variable constraint idx
-    #     constr_idx = self.work.data.m + self.nextvar
-    #
-    #     # Get next variable idx
-    #     nextvar_idx = self.work.data.i_idx[self.nextvar]
-    #
-    #     # Get updated QP interval bounds
-    #     l_right = np.copy(self.l)
-    #     u_right = np.copy(self.u)
-    #
-    #     # Add constraint if it make the feasible region smaller (max())
-    #     # ceil(x_relaxed) <= x
-    #     l_right[constr_idx] = max(l_right[constr_idx],
-    #                              np.ceil(self.x_relaxed[nextvar_idx]))
-    #
-    #     # Constrain it with upper bound
-    #     l_right[constr_idx] = min(l_right[constr_idx], u_right[constr_idx])
-    #
-    #     # print("Branch right: %.4f <= x[%i] \n" % (u_right[constr_idx], nextvar_idx))
-    #
-    #     if self.right is None:
-    #         # Create node with new bounds
-    #         self.right = Node(l_right, u_right, self.n + 1, self.work,
-    #                           self.x_relaxed, self.y_relaxed)
-    #         # Get bounds from that node
-    #         self.right.solve()
-    #
-    #     return self.right
-
-
-
 
     def solve(self):
         """
@@ -273,50 +199,6 @@ class Node:
 
         # Get lower bound (objective value of relaxed problem)
         self.lower = results.info.obj_val
-
-        # # Check if maximum number of iterations reached
-        # if (self.status == \
-        #     self.work.solver.constant('OSQP_MAX_ITER_REACHED')):
-        #     print("ERROR: Max Iter Reached!")
-        #     pdb.set_trace()
-
-        # # Check if infeasible or unbounded -> Node becomes fathomed
-        # if (self.status == \
-        #     self.work.solver.constant('OSQP_INFEASIBLE')) | \
-        #     self.status == \
-        #     self.work.solver.constant('OSQP_UNBOUNDED'):
-        #     # self.status = MI_NODE_INF_OR_UNB
-        #     return
-        # else:
-        #     # self.status = MI_NODE_SOLVED
-
-
-        # # Check if integer feasible solution withing l and u bounds
-        # if (self.is_int_feas(self.x) and \
-        #     self.is_within_bounds(self.x)):
-        #     #   -> update bounds, status and variable x
-        #     self.lower = results.info.obj_val
-        #     self.upper = results.info.obj_val
-        #     # self.status = MI_NODE_SOLVED_INT_FEAS
-        #     self.x = self.x
-        #     return
-
-
-
-        # Compute upper bound (get integer solution)
-        # self.x = self.get_integer_solution(self.x_relaxed)
-
-        # #   - check feasibility
-        # if self.is_within_bounds(self.x):
-        #     #   - if rounded is feasible --> compute new upper bound
-        #     self.upper = self.work.data.compute_obj_val(self.x)
-        # else:
-        #     self.x = None
-
-        # # Pick next variable to choose
-        # self.pick_nextvar(self.x_relaxed,
-        #                   self.work.settings['branching_rule'])
-
 
 class Workspace(object):
     """
@@ -380,6 +262,9 @@ class Workspace(object):
         # Define leaves at the beginning (only root)
         self.leaves = [self.root]
 
+        # Define runtime
+        self.run_time = 0
+
     def can_continue(self):
         """
         Check if the solver can continue
@@ -390,17 +275,6 @@ class Workspace(object):
 
         # Check if the number of iterations is within the limit
         check &= self.iter_num < self.settings['max_iter_bb']
-
-        # check = self.upper_glob - self.lower_glob > \
-        #     self.settings['eps_bb_abs']
-        # check &= (self.upper_glob - self.lower_glob)/abs(self.lower_glob) > \
-        #          self.settings['eps_bb_rel']
-        # check &= self.iter_num < self.settings['max_iter_bb']
-        #
-        # # Get branchable leaves. Check if there is at least one to continue
-        # self.not_fathomed_leaves = [leaf for leaf in self.leaves \
-        #                             if leaf.status != MI_NODE_FATHOMED]
-        # check &= any(self.not_fathomed_leaves)
 
         return check
 
@@ -414,63 +288,12 @@ class Workspace(object):
             # Depth first: Choose leaf with highest depth
             leaf_idx = np.argmax([leaf.depth for leaf in self.leaves])
             leaf = self.leaves[leaf_idx]
-            # Old stuff
-            # # Choose leaf with lowest lower bound between leaves which
-            # # can be expanded
-            # min_lower = min([leaf.lower for leaf in \
-            #                  self.not_fathomed_leaves])
-            # for x in self.leaves:
-            #     if x.lower == min_lower:
-            #         leaf = x
         else:
             raise ValueError('Tree exploring strategy not recognized')
-
-        # pdb.set_trace()
         # Remove leaf from the list of leaves
         self.leaves.remove(leaf)
 
         return leaf
-
-
-    # def branch(self, leaf):
-    #     """
-    #     Branch
-    #         - Expand leaf within leaves list in branch and bound tree.
-    #         - Solve the relaxed problems in the right and left children
-    #         - Obtain new global upper and global lower bounds
-    #     """
-    #     left = leaf.add_left()
-    #     right = leaf.add_right()
-    #     self.leaves.remove(leaf)
-    #     self.leaves += [left, right]
-    #
-    #     # Update lower and upper bound
-    #     self.lower_glob = min([x.lower for x in self.leaves])
-    #     # TODO: Can't the lower_glob update be only a min between current
-    #     #       lower_glob and the new ones for the leaves?
-    #     #       (just like the upper bound?)
-    #
-    #     # Update upper bound
-    #     upper_bounds = np.array([self.upper_glob, left.upper, right.upper])
-    #     upper_idx = np.argmin(upper_bounds)
-    #     self.upper_glob = upper_bounds[upper_idx]
-    #
-    #     # if uppwer bound improved -> Store node solution x
-    #     if upper_idx == 1:
-    #         self.x = left.x # Update solution
-    #     elif upper_idx == 2:
-    #         self.x = right.x # Update solution
-
-
-    # def bound(self):
-    #     """
-    #     Bound
-    #         - prune tree nodes if their lower value is greater than the current
-    #     upper bound
-    #     """
-    #     for node in self.root.nodes():
-    #         if node.lower > self.upper_glob:
-    #             node.status = MI_NODE_FATHOMED
 
     def add_left(self, leaf):
         """
@@ -660,30 +483,6 @@ class Workspace(object):
         # Add right node to the leaves list
         self.add_right(leaf)
 
-    # def init_root(self):
-    #     """
-    #     Initialize root node and get bounds
-    #     """
-    #     # Get bounds from root node
-    #     self.root.solve()
-    #     if self.root.status == self.solver.constant('OSQP_INFEASIBLE'):
-    #         # Root node infeasible
-    #         self.status = MI_INFEASIBLE
-    #         return
-    #
-    #     if self.root.status == self.solver.constant('OSQP_UNBOUNDED'):
-    #         # Root node unbounded
-    #         self.status = MI_UNBOUNDED
-    #         return
-    #
-    #     # Update global bounds
-    #     self.upper_glob = self.root.upper
-    #     self.lower_glob = self.root.lower
-    #
-    #     # Update global solution if integer feasible
-    #     if self.root.x is not None:
-    #         self.x = self.root.x
-
     def get_return_status(self):
         """
         Get return status for MIQP solver
@@ -720,8 +519,13 @@ class Workspace(object):
         """
         Print progress at each iteration
         """
-        print("%4d\t%4d\t  %10.2e\t%4d\t%5d\t  %10.2e\t%10.2e\t%8.2f%%" %
-              (self.iter_num, len(self.leaves), leaf.lower,  leaf.depth, 1000, self.lower_glob, self.upper_glob, (self.upper_glob - self.lower_glob)/abs(self.upper_glob)*100))
+        if self.upper_glob == np.inf:
+            gap = "    ---"
+        else:
+            gap = "%8.2f%%" % ((self.upper_glob - self.lower_glob)/abs(self.upper_glob)*100)
+
+        print("%4d\t%4d\t  %10.2e\t%4d\t%5d\t  %10.2e\t%10.2e\t%s" %
+              (self.iter_num, len(self.leaves), leaf.lower,  leaf.depth, 1000, self.lower_glob, self.upper_glob, gap))
 
     def solve(self):
         """
@@ -730,9 +534,6 @@ class Workspace(object):
 
         # Print header
         self.print_headline()
-
-        # Initialize root node and get bounds
-        # self.init_root()
 
         # Loop tree until there are active leaves
         while self.can_continue():
@@ -746,18 +547,15 @@ class Workspace(object):
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
 
-            # Print progress
-            self.print_progress(leaf)
+            if (self.iter_num % PRINT_INTERVAL == 0):
+                # Print progress
+                self.print_progress(leaf)
 
             # Delete leaf object
             del(leaf)
 
             # Update iteration number
             self.iter_num += 1
-
-            # Stop
-            # pdb.set_trace()
-
 
         print("Done!")
 
@@ -788,11 +586,11 @@ def miosqp_solve(P, q, A, l, u, i_idx):
 
     qp_settings = {'eps_abs': 1e-04,
                    'eps_rel': 1e-04,
-                   'eps_inf': 1e-03,
+                   'eps_inf': 1e-04,
                    'rho': 0.1,
                    'sigma': 0.01,
                    'polishing': False,
-                   'max_iter': 5000,
+                   'max_iter': 2500,
                    'verbose': False}
 
     # Create data class instance

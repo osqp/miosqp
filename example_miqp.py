@@ -16,7 +16,8 @@ if __name__ == "__main__":
     m = 20
 
     # Reset random number generator
-    np.random.seed(4)
+    # np.random.seed(4)  # Working with few iters
+    np.random.seed(5)
 
     # Generate random Matrices
     Pt = sp.randn(n, n)
@@ -30,8 +31,8 @@ if __name__ == "__main__":
 
     # Create MIQP problem
     prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-    # resGUROBI = prob.solve(solver=mpbpy.GUROBI)
-    resCPLEX = prob.solve(solver=mpbpy.CPLEX)
+    resGUROBI = prob.solve(solver=mpbpy.GUROBI)
+    # resCPLEX = prob.solve(solver=mpbpy.CPLEX)
 
 
     # Try miOSQP
@@ -39,8 +40,8 @@ if __name__ == "__main__":
 
 
 
-    # print("\n\n\nDifference solutions miOSQP and GUROBI               %.4e" % la.norm(resGUROBI.x - work.x))
-    print("\n\n\nDifference solutions miOSQP and CPLEX               %.4e" % la.norm(resCPLEX.x - work.x))
+    print("\n\n\nDifference solutions miOSQP and GUROBI               %.4e" % la.norm(resGUROBI.x - work.x))
+    # print("\n\n\nDifference solutions miOSQP and CPLEX               %.4e" % la.norm(resCPLEX.x - work.x))
 
 
     print("miOSQP")
@@ -48,12 +49,12 @@ if __name__ == "__main__":
     print("Objective value       %.4e" % work.upper_glob)
     print("Elapsed time          %.4e\n" % work.run_time)
 
-    # print("GUROBI")
-    # print("------")
-    # print("Objective value       %.4e" % resGUROBI.objval)
-    # print("Elapsed time          %.4e" % resGUROBI.cputime)
-
-    print("CPLEX")
+    print("GUROBI")
     print("------")
-    print("Objective value       %.4e" % resCPLEX.objval)
-    print("Elapsed time          %.4e" % resCPLEX.cputime)
+    print("Objective value       %.4e" % resGUROBI.objval)
+    print("Elapsed time          %.4e" % resGUROBI.cputime)
+
+    # print("CPLEX")
+    # print("------")
+    # print("Objective value       %.4e" % resCPLEX.objval)
+    # print("Elapsed time          %.4e" % resCPLEX.cputime)
