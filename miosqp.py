@@ -14,8 +14,13 @@ import scipy.sparse as spa
 from time import time
 
 
+# Dump max_iter_problems to files
+import pickle
+from os import listdir
+from os.path import splitext
+
 # Plotting
-import matplotlib.pylab as plt
+# import matplotlib.pylab as plt
 
 
 import ipdb
@@ -196,12 +201,6 @@ class Node:
 
         # Store solver status
         self.status = results.info.status_val
-
-        # Check if maximum number of iterations reached
-        if (self.status == \
-            self.solver.constant('OSQP_MAX_ITER_REACHED')):
-            print("ERROR: Max Iter Reached!")
-            ipdb.set_trace()
 
         # Store solver solution
         self.x = results.x
@@ -441,7 +440,7 @@ class Workspace(object):
         # 1) If infeasible or unbounded, then return (prune)
         if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
             leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
-            ipdb.set_trace()
+            # ipdb.set_trace()
             return
 
         # 2) If lower bound is greater than upper bound, then return (prune)
@@ -574,6 +573,23 @@ class Workspace(object):
 
             # 2) Solve relaxed problem in leaf
             leaf.solve()
+
+            # Check if maximum number of iterations reached
+            if (leaf.status == self.solver.constant('OSQP_MAX_ITER_REACHED')):
+                print("ERROR: Max Iter Reached!")
+                problem = {'P': self.data.P,
+                           'q': self.data.q,
+                           'A': self.data.A,
+                           'l': leaf.l,
+                           'u': leaf.u,
+                           'i_idx': self.data.i_idx,
+                           'settings': self.qp_settings}
+                # Get new filename
+                list_dir = listdir('./max_iter_examples')
+                last_name = int(splitext(list_dir[-1])[0])
+                with open('max_iter_examples/%s.pickle' % str(last_name + 1), 'wb') as f:
+                    pickle.dump(problem, f)
+                ipdb.set_trace()
 
             # 3) Bound and Branch
             self.bound_and_branch(leaf)

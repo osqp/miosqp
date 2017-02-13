@@ -7,18 +7,22 @@ import scipy.sparse as spspa
 import numpy as np
 import numpy.linalg as la
 import mathprogbasepy as mpbpy
+import random
 import miosqp
 reload(miosqp)
 
 if __name__ == "__main__":
     # Random Example
-    n = 10
-    m = 20
+    n = 20
+    m = 50
 
-    # Reset random number generator
+    # Choose random list of integer elements within x components
+    random.seed(3)
+    i_idx = random.sample(range(1,n), int(n/2))
+
     # np.random.seed(3)  # Working with few iters
     # np.random.seed(4)  # Working with few iters
-    np.random.seed(5)
+    # np.random.seed(5)
 
     # Generate random Matrices
     Pt = sp.randn(n, n)
@@ -28,7 +32,7 @@ if __name__ == "__main__":
     u = 3 + sp.randn(m)
     # l = u
     l = -3 + sp.randn(m)
-    i_idx = np.array([0, 2, 3, 7])  # index of integer variables
+    # i_idx = np.array([0, 2, 3, 7])  # index of integer variables
 
     # Create MIQP problem
     prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
