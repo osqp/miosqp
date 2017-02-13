@@ -120,8 +120,8 @@ class Node:
     ----------
     lower: double
         node's lower bound
-    upper: double
-        node's upper bound
+    data: Data structure
+        problem data
     depth: int
         depth in the tree
     intinf: int
@@ -138,6 +138,10 @@ class Node:
         qp solver return status
     solver: solver
         QP solver object instance
+    nextvar_idx: int
+        index of next variable within solution x
+    constr_idx: int
+        index of constraint to change for branching on next variable
     """
 
     def __init__(self, data, l, u, solver, depth=0, lower=None,
@@ -223,24 +227,18 @@ class Workspace(object):
         branch and bound settings
     solver: class
         QP solver class
-    root: class
-        root node of the tree
     leaves: list
         leaves in the tree
-    non_fathomed_leaves: list
-        leaves that can still be branched
 
     Other internal variables
     ------------------------
     iter_num: int
         number of iterations
-    explored_nodes: int
-        number of nodes explored
     run_time: double
         runtime of the algorithm
     upper_glob: double
         global upper bound
-    lower_glober: double
+    lower_glob: double
         global lower bound
     status: int
         MIQP solver status
@@ -267,10 +265,10 @@ class Workspace(object):
         self.x = np.empty(self.data.n)
 
         # Define root node
-        self.root = Node(self.data, self.data.l, self.data.u, self.solver)
+        root = Node(self.data, self.data.l, self.data.u, self.solver)
 
         # Define leaves at the beginning (only root)
-        self.leaves = [self.root]
+        self.leaves = [root]
 
         # Define runtime
         self.run_time = 0
@@ -322,8 +320,6 @@ class Workspace(object):
         u_left[leaf.constr_idx] = max(u_left[leaf.constr_idx],
                                       l_left[leaf.constr_idx])
 
-        # print("Branch left: x[%i] <= %.4f\n" % (leaf.nextvar_idx, u_left[leaf.constr_idx]))
-
         # Create new leaf
         new_leaf = Node(self.data, l_left, u_left, self.solver,
                         depth=leaf.depth + 1, lower=leaf.lower,
@@ -348,8 +344,6 @@ class Workspace(object):
         # Constrain it with upper bound
         l_right[leaf.constr_idx] = min(l_right[leaf.constr_idx],
                                        u_right[leaf.constr_idx])
-
-        # print("Branch right: %.4f <= x[%i] \n" % (u_right[leaf.constr_idx], leaf.nextvar_idx))
 
         # Create new leaf
         new_leaf = Node(self.data, l_right, u_right, self.solver,
@@ -454,7 +448,7 @@ class Workspace(object):
         if (self.is_int_feas(leaf.x, leaf)):
             # Update best solution so far
             self.x = leaf.x
-            # Update bounds
+            # Update upper bound
             self.upper_glob = leaf.lower
             # Prune all nodes
             self.prune()
@@ -472,7 +466,6 @@ class Workspace(object):
             if obj_int < self.upper_glob:
                 self.upper_glob = obj_int
                 self.prune()
-
 
         # 5) If we got here, branch current leaf producing two children
         self.branch(leaf)
@@ -559,8 +552,8 @@ class Workspace(object):
         """
 
         # Store bounds behavior for plotting
-        lowers = []
-        uppers = []
+        # lowers = []
+        # uppers = []
 
         # Print header
         self.print_headline()
@@ -589,7 +582,7 @@ class Workspace(object):
                 last_name = int(splitext(list_dir[-1])[0])
                 with open('max_iter_examples/%s.pickle' % str(last_name + 1), 'wb') as f:
                     pickle.dump(problem, f)
-                ipdb.set_trace()
+                # ipdb.set_trace()
 
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
@@ -605,8 +598,8 @@ class Workspace(object):
             self.iter_num += 1
 
             # Store bounds for plotting
-            lowers.append(self.lower_glob)
-            uppers.append(self.upper_glob)
+            # lowers.append(self.lower_glob)
+            # uppers.append(self.upper_glob)
 
         # Get final status
         self.get_return_status()
