@@ -2,6 +2,8 @@
 Solve MIQP using mathprogbasepy
 """
 from __future__ import division
+from __future__ import print_function
+from builtins import range
 import scipy as sp
 import scipy.sparse as spspa
 import numpy as np
@@ -18,7 +20,7 @@ if __name__ == "__main__":
 
     # Choose random list of integer elements within x components
     random.seed(3)
-    i_idx = random.sample(range(1,n), int(n/2))
+    i_idx = random.sample(list(range(1,n)), int(n/2))
 
     # np.random.seed(3)  # Working with few iters
     # np.random.seed(4)  # Working with few iters

@@ -6,6 +6,8 @@ Written by Bartolomeo Stellato, February 2017, University of Oxford
 """
 
 from __future__ import print_function, division
+from builtins import str
+from builtins import object
 import osqp  # Import OSQP Solver
 # import osqppurepy as osqp # Import OSQP Solver implementation in Pure Python
 import numpy as np
@@ -112,7 +114,7 @@ class Data(object):
         """
         return .5 * np.dot(x, self.P.dot(x)) + np.dot(self.q, x)
 
-class Node:
+class Node(object):
     """
     Branch-and-bound node class
 
@@ -570,18 +572,19 @@ class Workspace(object):
             # Check if maximum number of iterations reached
             if (leaf.status == self.solver.constant('OSQP_MAX_ITER_REACHED')):
                 print("ERROR: Max Iter Reached!")
-                problem = {'P': self.data.P,
-                           'q': self.data.q,
-                           'A': self.data.A,
-                           'l': leaf.l,
-                           'u': leaf.u,
-                           'i_idx': self.data.i_idx,
-                           'settings': self.qp_settings}
-                # Get new filename
-                list_dir = listdir('./max_iter_examples')
-                last_name = int(splitext(list_dir[-1])[0])
-                with open('max_iter_examples/%s.pickle' % str(last_name + 1), 'wb') as f:
-                    pickle.dump(problem, f)
+                # Dump file to 'max_iter_examples'folder
+                # problem = {'P': self.data.P,
+                #            'q': self.data.q,
+                #            'A': self.data.A,
+                #            'l': leaf.l,
+                #            'u': leaf.u,
+                #            'i_idx': self.data.i_idx,
+                #            'settings': self.qp_settings}
+                # # Get new filename
+                # list_dir = listdir('./max_iter_examples')
+                # last_name = int(splitext(list_dir[-1])[0])
+                # with open('max_iter_examples/%s.pickle' % str(last_name + 1), 'wb') as f:
+                #     pickle.dump(problem, f)
                 # ipdb.set_trace()
 
             # 3) Bound and Branch
