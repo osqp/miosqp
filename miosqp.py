@@ -128,6 +128,8 @@ class Node(object):
         depth in the tree
     intinf: int
         number of fractional elements which are supposed to be integer
+    frac_idx: array of int
+        index within the i_idx vector of the elements of x that are still fractional
     l: numpy array
         vector of lower bounds in relaxed QP problem
     u: numpy array
@@ -170,6 +172,10 @@ class Node(object):
             self.lower = -np.inf
         else:
             self.lower = lower
+
+        # Frac_idx, intin
+        self.frac_idx = None
+        self.intinf = None
 
 
         # Number of integer infeasible variables
@@ -359,9 +365,8 @@ class Workspace(object):
         """
         Pick next variable to branch upon
         """
-
-        # Part of solution that is supposed to be integer but is fractional
-        x_frac = leaf.x[self.data.i_idx]
+        # Part of solution that is supposed to be integer
+        x_frac = leaf.x[self.data.i_idx[leaf.frac_idx]]
 
         if self.settings['branching_rule'] == 0:
 
@@ -372,7 +377,8 @@ class Workspace(object):
             next_idx = np.argmax(fract_part)
 
             # Get index of next variable as position in the i_idx vector
-            nextvar = next_idx
+            nextvar = leaf.frac_idx[next_idx]
+
         else:
             raise ValueError('No variable selection rule recognized!')
 
@@ -400,12 +406,16 @@ class Workspace(object):
         Check if current solution is integer feasible
         """
 
-        # Check if integer variables are feasible up to tolerance
+        # Part of solution that is supposed to be integer
         x_int = x[self.data.i_idx]
 
-        # Vector of booleans: each elm is true if it is integer
-        is_int_vec = abs(x_int - np.round(x_int)) > self.settings['eps_int_feas']
-        leaf.intinf = np.sum(is_int_vec)
+        # Part of the solution that is still fractional
+        int_feas_false = abs(x_int - np.round(x_int)) >\
+            self.settings['eps_int_feas']
+        leaf.frac_idx = np.where(int_feas_false)[0].tolist()  # Index of frac parts
+
+        # Store number of fractional elements (integer infeasible)
+        leaf.intinf = np.sum(int_feas_false)
         if leaf.intinf > 0:
             return False
 

@@ -11,7 +11,7 @@ import numpy.linalg as la
 import mathprogbasepy as mpbpy
 import random
 import miosqp
-reload(miosqp)
+# reload(miosqp)
 
 if __name__ == "__main__":
     # Random Example
@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     # Choose random list of integer elements within x components
     random.seed(3)
-    i_idx = random.sample(list(range(1,n)), int(n/2))
+    i_idx = np.array(random.sample(list(range(1,n)), int(n/2)))
 
     # np.random.seed(3)  # Working with few iters
     # np.random.seed(4)  # Working with few iters
