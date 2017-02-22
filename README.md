@@ -1,5 +1,5 @@
 # MIQP Prototype Solver based on OSQP
-The solver lives in the `miosqp.py` file. In order to run it you need to install the [OSQP Python interface](https://github.com/bstellato/osqppy).
+The solver lives in the `miosqp.py` file. In order to run it you need to install the [OSQP Python interface](https://github.com/bstellato/osqp).
 
 ## Run example
 In order to run the examples from to compare with CPLEX or GUROBI, after installing their respective python insterface, you need to install [mathprogbasepy](https://github.com/bstellato/mathprogbasepy). The random examples can be run from `example_miqp.py` file.
