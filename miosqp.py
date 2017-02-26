@@ -287,12 +287,14 @@ class Workspace(object):
         """
 
         # Check if there are any leaves left in the list
-        check = any(self.leaves)
+        if not any(self.leaves):
+            return False
 
         # Check if the number of iterations is within the limit
-        check &= self.iter_num < self.settings['max_iter_bb']
+        if not self.iter_num < self.settings['max_iter_bb']:
+            return False
 
-        return check
+        return True
 
 
     def choose_leaf(self, tree_explor_rule):
@@ -657,8 +659,8 @@ def miosqp_solve(P, q, A, l, u, i_idx):
     qp_settings = {'eps_abs': 1e-04,
                    'eps_rel': 1e-04,
                    'eps_inf': 1e-04,
-                   'rho': 0.1,
-                   'sigma': 0.01,
+                   'rho': 0.2,
+                   'sigma': 0.001,
                    'polishing': False,
                    'max_iter': 2500,
                    'verbose': False}

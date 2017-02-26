@@ -9,7 +9,6 @@ import scipy.sparse as spspa
 import numpy as np
 import numpy.linalg as la
 import mathprogbasepy as mpbpy
-import random
 import miosqp
 # reload(miosqp)
 
@@ -19,12 +18,13 @@ if __name__ == "__main__":
     m = 50
 
     # Choose random list of integer elements within x components
-    random.seed(3)
-    i_idx = np.array(random.sample(list(range(1,n)), int(n/2)))
+    np.random.seed(3)
 
-    # np.random.seed(3)  # Working with few iters
-    # np.random.seed(4)  # Working with few iters
-    # np.random.seed(5)
+
+    # 10 times slower than gurobi
+    # i_idx = np.random.choice(np.arange(1,n+1), (int(n/2)), replace=False)
+    i_idx = np.random.choice(np.arange(1,n+1), (int(n/3)), replace=False)
+
 
     # Generate random Matrices
     Pt = sp.randn(n, n)
