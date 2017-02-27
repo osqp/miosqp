@@ -612,8 +612,9 @@ class Workspace(object):
         # lowers = []
         # uppers = []
 
-        # Print header
-        self.print_headline()
+        if self.settings['verbose']:
+            # Print header
+            self.print_headline()
 
         # Loop tree until there are active leaves
         while self.can_continue():
@@ -648,7 +649,8 @@ class Workspace(object):
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
 
-            if (self.iter_num % (PRINT_INTERVAL) == 0):
+            if (self.iter_num % (PRINT_INTERVAL) == 0) and \
+                self.settings['verbose']:
                 # Print progress
                 self.print_progress(leaf)
 
@@ -665,8 +667,9 @@ class Workspace(object):
         # Get final status
         self.get_return_status()
 
-        # Print footer
-        self.print_footer()
+        if self.settings['verbose']:
+            # Print footer
+            self.print_footer()
 
         # Print bounds
         # plt.figure(1)
@@ -706,5 +709,6 @@ def miosqp_solve(P, q, A, l, u, i_idx, settings, qp_settings):
     # Stop
     stop = time()
     work.run_time = stop - start
-    print("Elapsed time: %.4es" % work.run_time)
+    if settings['verbose']:
+        print("Elapsed time: %.4es" % work.run_time)
     return work
