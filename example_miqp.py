@@ -10,7 +10,14 @@ import numpy as np
 import numpy.linalg as la
 import mathprogbasepy as mpbpy
 import miosqp
-# reload(miosqp)
+
+# Reload miosqp module
+try:
+    reload  # Python 2.7
+except NameError:
+    from importlib import reload  # Python 3.4+
+
+reload(miosqp)
 
 if __name__ == "__main__":
     # Random Example
@@ -18,12 +25,15 @@ if __name__ == "__main__":
     m = 50
 
     # Choose random list of integer elements within x components
-    np.random.seed(3)
+    # np.random.seed(3)
+    # np.random.seed(5)   # Tricky
+    np.random.seed(7)
+
 
 
     # 10 times slower than gurobi
     # i_idx = np.random.choice(np.arange(1,n+1), (int(n/2)), replace=False)
-    i_idx = np.random.choice(np.arange(1,n+1), (int(n/3)), replace=False)
+    i_idx = np.random.choice(np.arange(0,n), (int(n/2)), replace=False)
 
 
     # Generate random Matrices
@@ -43,7 +53,28 @@ if __name__ == "__main__":
 
 
     # Try miOSQP
-    work = miosqp.miosqp_solve(P, q, A, l, u, i_idx)
+
+    # Define problem settings
+    miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
+                       'max_iter_bb': 1000,     # maximum number of iterations
+                       'tree_explor_rule': 1,   # tree exploration rule
+                                                #   [0] depth first
+                                                #   [1] two-phase: depth first  until first incumbent and then  best bound
+                       'branching_rule': 0}     # branching rule
+                                                #   [0] max fractional part
+
+    osqp_settings = {'eps_abs': 1e-04,
+                     'eps_rel': 1e-04,
+                     'eps_inf': 1e-02,
+                     'rho': 0.1,
+                     'sigma': 0.01,
+                     'alpha': 1.5,
+                     'polishing': False,
+                     'max_iter': 2000,
+                     'verbose': False}
+
+    work = miosqp.miosqp_solve(P, q, A, l, u, i_idx,
+                               miosqp_settings, osqp_settings)
 
 
 

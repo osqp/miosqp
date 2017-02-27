@@ -13,11 +13,11 @@ from os import listdir
 import mathprogbasepy as mpbpy
 
 # Lead maxiter problems
-list_dir = listdir('./max_iter_examples')
-
+# list_dir = listdir('./max_iter_examples')
+prob_file = '76'
 
 # Load one problem
-with open('./max_iter_examples/%s' % list_dir[2], 'rb') as f:
+with open('./max_iter_examples/%s.pickle' % prob_file, 'rb') as f:
     problem = pickle.load(f)
 
 problem['settings']['verbose'] = True

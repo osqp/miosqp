@@ -22,18 +22,18 @@ from os import listdir
 from os.path import splitext
 
 # Plotting
-# import matplotlib.pylab as plt
+import matplotlib.pylab as plt
 
 
-import ipdb
+import pdb
 
 # Solver statuses
-MI_UNSOLVED = 10
-MI_SOLVED = 11
-MI_INFEASIBLE = 9
-MI_UNBOUNDED = 8
-MI_MAX_ITER_FEASIBLE = 12
-MI_MAX_ITER_UNSOLVED = 13
+MI_UNSOLVED = 'Unolved'
+MI_SOLVED = 'Solved'
+MI_INFEASIBLE = 'Infeasible'
+MI_UNBOUNDED = 'Unbounded'
+MI_MAX_ITER_FEASIBLE = 'Max-iter feasible'
+MI_MAX_ITER_UNSOLVED = 'Max-iter unsolved'
 
 # Printing interval constant
 PRINT_INTERVAL = 1
@@ -126,7 +126,7 @@ class Node(object):
         problem data
     depth: int
         depth in the tree
-    intinf: int
+    ©: int
         number of fractional elements which are supposed to be integer
     frac_idx: array of int
         index within the i_idx vector of the elements of x that are still fractional
@@ -140,6 +140,8 @@ class Node(object):
         node's relaxed solution. At the beginning it is the warm-starting value y0
     status: int
         qp solver return status
+    num_iter: int
+        number of OSQP ADMM iterations
     solver: solver
         QP solver object instance
     nextvar_idx: int
@@ -181,6 +183,9 @@ class Node(object):
         # Number of integer infeasible variables
         self.intinf = None
 
+        # Number of OSQP ADMM iterations
+        self.num_iter = 0
+
         # Warm-start variables which are also the relaxed solutions
         if x0 is None:
             x0 = np.zeros(self.data.n)
@@ -214,6 +219,9 @@ class Node(object):
         # Store solver status
         self.status = results.info.status_val
 
+        # Store number of iterations
+        self.num_iter = results.info.iter
+
         # Store solver solution
         self.x = results.x
         self.y = results.y
@@ -242,6 +250,8 @@ class Workspace(object):
     ------------------------
     iter_num: int
         number of iterations
+    osqp_iter: int
+        number of osqp admm iteration
     run_time: double
         runtime of the algorithm
     upper_glob: double
@@ -267,6 +277,7 @@ class Workspace(object):
 
         # Define other internal variables
         self.iter_num = 1
+        self.osqp_iter = 0
         self.upper_glob = np.inf
         self.lower_glob = -np.inf
         self.status = MI_UNSOLVED
@@ -305,9 +316,22 @@ class Workspace(object):
         if tree_explor_rule == 0:
             # Depth first: Choose leaf with highest depth
             leaf_idx = np.argmax([leaf.depth for leaf in self.leaves])
-            leaf = self.leaves[leaf_idx]
+        elif tree_explor_rule == 1:
+            # Two-phase method.
+            #   - First perform depth first
+            #   - Then choose leaves with best bound
+            if np.isinf(self.upper_glob):
+                # First phase
+                leaf_idx = np.argmax([leaf.depth for leaf in self.leaves])
+            else:
+                # Second phase
+                leaf_idx = np.argmax([leaf.lower for leaf in self.leaves])
         else:
             raise ValueError('Tree exploring strategy not recognized')
+
+        # Get leaf
+        leaf = self.leaves[leaf_idx]
+
         # Remove leaf from the list of leaves
         self.leaves.remove(leaf)
 
@@ -445,6 +469,9 @@ class Workspace(object):
         Analize result from leaf solution and bound
         """
 
+        # Update total number of OSQP ADMM iteration
+        self.osqp_iter += leaf.num_iter
+
         # 1) If infeasible or unbounded, then return (prune)
         if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
             leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
@@ -531,8 +558,8 @@ class Workspace(object):
         """
         Print headline
         """
-        print("     Nodes      |           Current Node        |             Objective Bounds           ")
-        print("Explr\tUnexplr\t|      Obj\tDepth\tIntInf  |    Lower\t   Upper\t    Gap  ")
+        print("     Nodes      |           Current Node        |             Objective Bounds             |   Cur Node")
+        print("Explr\tUnexplr\t|      Obj\tDepth\tIntInf  |    Lower\t   Upper\t    Gap    |     Iter")
 
 
     def print_progress(self, leaf):
@@ -540,9 +567,9 @@ class Workspace(object):
         Print progress at each iteration
         """
         if self.upper_glob == np.inf:
-            gap = "    ---"
+            gap = "    --- "
         else:
-            gap = "%8.2f%%" % ((self.upper_glob - self.lower_glob)/abs(self.upper_glob)*100)
+            gap = "%8.2f%%" % ((self.upper_glob - self.lower_glob)/abs(self.lower_glob)*100)
 
         if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
             leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
@@ -555,10 +582,26 @@ class Workspace(object):
         else:
             intinf = "%5d" % leaf.intinf
 
+        print("%4d\t%4d\t  %10.2e\t%4d\t%s\t  %10.2e\t%10.2e\t%s\t%5d" %
+              (self.iter_num, len(self.leaves), obj,  leaf.depth, intinf, self.lower_glob, self.upper_glob, gap, leaf.num_iter), end='')
+
+        if leaf.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+            print("!")
+        else:
+            print("")
 
 
-        print("%4d\t%4d\t  %10.2e\t%4d\t%s\t  %10.2e\t%10.2e\t%s" %
-              (self.iter_num, len(self.leaves), obj,  leaf.depth, intinf, self.lower_glob, self.upper_glob, gap))
+
+    def print_footer(self):
+        """
+        Print final statistics
+        """
+
+        print("\n")
+        print("Status: %s" % self.status)
+        print("Objectivs bound: %6.3e" % self.upper_glob)
+        print("Total number of OSQP iterations: %d" % self.osqp_iter)
+
 
     def solve(self):
         """
@@ -578,13 +621,16 @@ class Workspace(object):
             # 1) Choose leaf
             leaf = self.choose_leaf(self.settings['tree_explor_rule'])
 
+            # if self.iter_num == 22:
+            #     import pdb; pdb.set_trace()
+
             # 2) Solve relaxed problem in leaf
             leaf.solve()
 
             # Check if maximum number of iterations reached
-            if (leaf.status == self.solver.constant('OSQP_MAX_ITER_REACHED')):
-                print("ERROR: Max Iter Reached!")
-                # Dump file to 'max_iter_examples'folder
+            # if (leaf.status == self.solver.constant('OSQP_MAX_ITER_REACHED')):
+                # print("ERROR: Max Iter Reached!")
+                # # Dump file to 'max_iter_examples'folder
                 # problem = {'P': self.data.P,
                 #            'q': self.data.q,
                 #            'A': self.data.A,
@@ -597,12 +643,12 @@ class Workspace(object):
                 # last_name = int(splitext(list_dir[-1])[0])
                 # with open('max_iter_examples/%s.pickle' % str(last_name + 1), 'wb') as f:
                 #     pickle.dump(problem, f)
-                # ipdb.set_trace()
+                # import pdb; pdb.set_trace()
 
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
 
-            if (self.iter_num % PRINT_INTERVAL == 0):
+            if (self.iter_num % (PRINT_INTERVAL) == 0):
                 # Print progress
                 self.print_progress(leaf)
 
@@ -619,6 +665,8 @@ class Workspace(object):
         # Get final status
         self.get_return_status()
 
+        # Print footer
+        self.print_footer()
 
         # Print bounds
         # plt.figure(1)
@@ -637,7 +685,7 @@ class Workspace(object):
         return
 
 
-def miosqp_solve(P, q, A, l, u, i_idx):
+def miosqp_solve(P, q, A, l, u, i_idx, settings, qp_settings):
     """
     Solve MIQP problem using MIOSQP solver
     """
@@ -645,25 +693,6 @@ def miosqp_solve(P, q, A, l, u, i_idx):
     # Start timer
     start = time()
 
-
-    # Define problem settings
-    settings = {'eps_bb_abs': 1e-03,           # absolute convergence tolerance
-                'eps_bb_rel': 1e-03,           # relative convergence tolerance
-                'eps_int_feas': 1e-03,         # integer feasibility tolerance
-                'max_iter_bb': 1000,           # maximum number of iterations
-                'tree_explor_rule': 0,         # tree exploration rule
-                                               #   [0] depth first
-                'branching_rule': 0}           # branching rule
-                                               #   [0] max fractional part
-
-    qp_settings = {'eps_abs': 1e-04,
-                   'eps_rel': 1e-04,
-                   'eps_inf': 1e-04,
-                   'rho': 0.2,
-                   'sigma': 0.001,
-                   'polishing': False,
-                   'max_iter': 2500,
-                   'verbose': False}
 
     # Create data class instance
     data = Data(P, q, A, l, u, i_idx)
