@@ -211,13 +211,17 @@ class Node(object):
         self.solver.update(l=self.l, u=self.u)
 
         # Warm start solver with currently stored solution
-        self.solver.warm_start(x=self.x, y=self.y)
+        # self.solver.warm_start(x=self.x, y=self.y)
 
         # Solve current problem
         results = self.solver.solve()
 
         # Store solver status
         self.status = results.info.status_val
+
+        # DEBUG: Problems that hit max_iter are infeasible
+        # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+            # self.status = self.solver.constant('OSQP_INFEASIBLE')
 
         # Store number of iterations
         self.num_iter = results.info.iter
@@ -263,7 +267,7 @@ class Workspace(object):
     x: numpy array
         current best solution
     """
-    def __init__(self, data, settings, qp_settings=None):
+    def __init__(self, data, settings, qp_settings=None, x0=None):
         self.data = data
         self.settings = settings
 
@@ -278,16 +282,27 @@ class Workspace(object):
         # Define other internal variables
         self.iter_num = 1
         self.osqp_iter = 0
-        self.upper_glob = np.inf
         self.lower_glob = -np.inf
         self.status = MI_UNSOLVED
-        self.x = np.empty(self.data.n)
+
 
         # Define root node
         root = Node(self.data, self.data.l, self.data.u, self.solver)
 
         # Define leaves at the beginning (only root)
         self.leaves = [root]
+
+        # Add initial solution and objective value
+        if x0 is not None:
+            if self.is_within_bounds(x0, root) and self.is_int_feas(x0, root):
+                self.x = x0
+                self.upper_glob = self.data.compute_obj_val(x0)
+            else:
+                self.upper_glob = np.inf
+                self.x = np.empty(self.data.n)
+        else:
+            self.upper_glob = np.inf
+            self.x = np.empty(self.data.n)
 
         # Define runtime
         self.run_time = 0
@@ -599,7 +614,8 @@ class Workspace(object):
 
         print("\n")
         print("Status: %s" % self.status)
-        print("Objectivs bound: %6.3e" % self.upper_glob)
+        if self.status == MI_SOLVED:
+            print("Objective bound: %6.3e" % self.upper_glob)
         print("Total number of OSQP iterations: %d" % self.osqp_iter)
 
 
@@ -621,9 +637,6 @@ class Workspace(object):
 
             # 1) Choose leaf
             leaf = self.choose_leaf(self.settings['tree_explor_rule'])
-
-            # if self.iter_num == 22:
-            #     import pdb; pdb.set_trace()
 
             # 2) Solve relaxed problem in leaf
             leaf.solve()
@@ -688,7 +701,7 @@ class Workspace(object):
         return
 
 
-def miosqp_solve(P, q, A, l, u, i_idx, settings, qp_settings):
+def miosqp_solve(P, q, A, l, u, i_idx, settings, qp_settings, x0=None):
     """
     Solve MIQP problem using MIOSQP solver
     """
@@ -701,7 +714,7 @@ def miosqp_solve(P, q, A, l, u, i_idx, settings, qp_settings):
     data = Data(P, q, A, l, u, i_idx)
 
     # Create Workspace
-    work = Workspace(data, settings, qp_settings)
+    work = Workspace(data, settings, qp_settings, x0)
 
     # Solve problem
     work.solve()

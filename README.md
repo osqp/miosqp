@@ -9,6 +9,10 @@ For some problem instances, OSQP reaches the maximum number of iterations. In or
 
 
 ## TODO
+
+-   [ ] Check when it hits the max number of iterations (if only when the subproblems are infeasible) -> Yes, that's the case
+-   [ ] Find first solution using ADMM heuristic
+-   [ ] Test binary-only problems -> Works really well!
 -   [x] Add proper infeasibility test
 -   [x] Add number of integer infeasible variables to printing function
 -   [x] Cleanup unused functions/variables
