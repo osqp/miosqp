@@ -1,8 +1,6 @@
 import osqp
 # import osqppurepy as osqp
 
-import mathprogbasepy as mpbpy
-
 # Read max_iter_problems from files
 import pickle
 from os import listdir
@@ -21,8 +19,8 @@ with open('./max_iter_examples/%s.pickle' % prob_file, 'rb') as f:
     problem = pickle.load(f)
 
 problem['settings']['verbose'] = True
-problem['settings']['rho'] = 2.5
-
+problem['settings']['rho'] = 0.01
+# problem['settings']['max_iter'] = 10**10   # With the same rho it converges in 163k iters
 
 
 # Solve with OSQP
