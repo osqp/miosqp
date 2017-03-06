@@ -98,7 +98,7 @@ if __name__ == "__main__":
                      'rho': 0.005,
                      'sigma': 0.01,
                      'alpha': 1.5,
-                     'polishing': False,
+                     'polish': False,
                      'max_iter': 2000,
                      'verbose': False}
 

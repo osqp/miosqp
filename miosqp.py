@@ -38,6 +38,38 @@ MI_MAX_ITER_UNSOLVED = 'Max-iter unsolved'
 # Printing interval constant
 PRINT_INTERVAL = 1
 
+
+def add_bounds(i_idx, l_new, u_new, A, l, u):
+    """
+    Add new bounds on the variables
+
+        l_new <= x_i <= u_new for i in i_idx
+
+    It is done by adding rows to the contraints
+
+        l <= A x <= u
+    """
+
+    n = A.shape[1]
+
+    # Enforce integer variables to be binary => {0, 1}
+    I_int = spa.identity(n).tocsc()
+    I_int = I_int[i_idx, :]
+    l_int = np.empty((n,))
+    l_int.fill(l_new)
+    l_int = l_int[i_idx]
+    u_int = np.empty((n,))
+    u_int.fill(u_new)
+    u_int = u_int[i_idx]
+    A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+    l = np.append(l, l_int)         # Extend problem constraints
+    u = np.append(u, u_int)         # Extend problem constraints
+
+    return A, l, u
+
+
+
+
 class Data(object):
     """
     Data for the relaxed qp problem in the form
@@ -83,21 +115,24 @@ class Data(object):
         #
         # Extend problem with new constraints to accomodate integral constraints
         #
-        I_int = spa.identity(self.n).tocsc()
-        I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
-                                    # the identity relative to the integer variables
-
-        # Extend the bounds only for the variables which are integer
-        l_int = np.empty((self.n,))
-        l_int.fill(-np.inf)
-        l_int = l_int[i_idx]
-        u_int = np.empty((self.n,))
-        u_int.fill(np.inf)
-        u_int = u_int[i_idx]
-
-        self.A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
-        self.l = np.append(l, l_int)         # Extend problem constraints
-        self.u = np.append(u, u_int)         # Extend problem constraints
+        self.A, self.l, self.u = add_bounds(i_idx, -np.inf, np.inf, A, l, u)
+        
+        #
+        # I_int = spa.identity(self.n).tocsc()
+        # I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
+        #                             # the identity relative to the integer variables
+        #
+        # # Extend the bounds only for the variables which are integer
+        # l_int = np.empty((self.n,))
+        # l_int.fill(-np.inf)
+        # l_int = l_int[i_idx]
+        # u_int = np.empty((self.n,))
+        # u_int.fill(np.inf)
+        # u_int = u_int[i_idx]
+        #
+        # self.A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+        # self.l = np.append(l, l_int)         # Extend problem constraints
+        # self.u = np.append(u, u_int)         # Extend problem constraints
 
         #
         # Define problem cost function
