@@ -25,7 +25,7 @@ import numpy as np
 import numpy.linalg as la
 import mathprogbasepy as mpbpy
 
-
+import miosqp
 
 
 
@@ -33,8 +33,22 @@ import mathprogbasepy as mpbpy
 #a = np.matrix('0.5, -0.5,  0.2, -0.7,  0.6, -0.2,  0.7, -0.5,  0.8, -0.4') / 10
 a = np.array([ 0.5, -0.5,  0.2, -0.7,  0.6, -0.2,  0.7, -0.5,  0.8, -0.4]) / 10.
 
+
 #l=[40 20 40 40 20 40 30 40 30 60];
 l = np.array([40., 20., 40., 40., 20., 40., 30., 40., 30., 60.])
+
+
+# import matplotlib.pylab as plt
+# x = np.linspace(0, 10)
+# y = np.zeros(len(x))
+# for i in range(len(x)):
+#     y[i] = np.max(a.dot(x[i]) + l)
+#
+# plt.figure()
+# plt.plot(x, y)
+# plt.show(block=False)
+
+
 
 
 
@@ -53,7 +67,8 @@ for i in range(1, l.size):
 
 # Model
 #P_des = Preq(1: 5: end);
-P_des = Preq[0:Preq.size:5]
+# P_des = Preq[0:Preq.size:5]
+P_des = Preq[0:len(Preq):60]
 
 #T = length(P_des);
 T = len(P_des)
@@ -282,9 +297,39 @@ q = np.matmul(Perm.T, q)
 
 
 
+# Make it compatible with mathprogbasepy
+
 # Sparsify matrices
 P = spa.csc_matrix(P)
 A = spa.csc_matrix(A)
+
+# Get indeces
+i_idx = np.arange(T)
+
+# Get bounds
+
+# Add bounds on binary variables
+A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
+
+# # Enforce integer variables to be binary => {0, 1}
+# I_int = spa.identity(n).tocsc()
+# I_int = I_int[i_idx, :]
+# l_int = np.empty((n,))
+# l_int.fill(0.)
+# l_int = l_int[i_idx]
+# u_int = np.empty((n,))
+# u_int.fill(1)
+# u_int = u_int[i_idx]
+# A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+# l = np.append(l, l_int)         # Extend problem constraints
+# u = np.append(u, u_int)         # Extend problem constraints
+
+
+
+
+
+# Solve with gurobi
+mpbpy.QuadprogProblem(P, q, A, l, u, i_idx);
 
 
 # import matplotlib.pylab as plt
