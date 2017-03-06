@@ -6,69 +6,98 @@ Bartolomeo Stellato, University of Oxford, 2017
 import examples.vehicle_matrices as mat
 import mathprogbasepy as mpbpy
 import matplotlib.pylab as plt
+import numpy as np
+
+import miosqp
 
 def run_example():
     """
     Generate and solve vehicle example
     """
 
-    T = 72      # Horizon length
+    T = 72       # Horizon length
     n_x = 1     # Number of states
     n_u = 4     # Number of inputs
 
     # Generate problem matrices
-    P, q, A, l, u, i_idx = mat.generate_example(T)
+    P, q, A, l, u, r, i_idx = mat.generate_example(T)
 
     # Solve with gurobi
     # Create MIQP problem
     prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-    resGUROBI = prob.solve(solver=mpbpy.GUROBI)
+
+    '''
+    Solve with GUROBI (Time limit 20 sec)
+    '''
+    resGUROBI = prob.solve(solver=mpbpy.GUROBI, TimeLimit=20)
+
+    '''
+    Solve with CPLEX (Time limit 20 sec)
+    '''
+    # resCPLEX = prob.solve(solver=mpbpy.CPLEX, timelimit=20)
+
+    '''
+    Solve with MIOSQP
+    '''
+    # Define problem settings
+    miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
+                       'max_iter_bb': 1000,     # maximum number of iterations
+                       'tree_explor_rule': 1,   # tree exploration rule
+                                                #   [0] depth first
+                                                #   [1] two-phase: depth first  until first incumbent and then  best bound
+                       'branching_rule': 0,     # branching rule
+                                                #   [0] max fractional part
+                       'verbose': True}
+
+    osqp_settings = {'eps_abs': 1e-03,
+                     'eps_rel': 1e-03,
+                     'eps_inf': 1e-03,
+                     'rho': 0.001,
+                     'sigma': 0.01,
+                     'alpha': 1.5,
+                     'polish': False,
+                     'max_iter': 2000,
+                     'verbose': False}
+
+    work = miosqp.miosqp_solve(P, q, A, l, u, i_idx,
+                               miosqp_settings, osqp_settings,
+                               resGUROBI.x
+                               )
 
 
+
+
+    # import ipdb; ipdb.set_trace()
 
     # Get results
-    x = resGUROBI.x
+    # x = resCPLEX.x
+    x = work.x
     z = x[2:n_u*T:n_u]
+    s = x[3:n_u*T:n_u]
     P_eng = x[1:n_u*T:n_u]
     P_batt = x[0:n_u*T:n_u]
-    E = x[n_u*T:-1]
+    E = x[n_u*T:]
 
+    import ipdb; ipdb.set_trace()
 
     # Plot results
-    fig, ax = plt.subplots(2, 2)
-    ax[0, 0].plot(z)
-    ax[0, 0].set_ylabel('z')
-    ax[1, 0].plot(E)
-    ax[1, 0].set_ylabel('E')
-    ax[0, 1].plot(P_eng)
-    ax[0, 1].set_ylabel('P_eng')
-    ax[1, 1].plot(P_batt)
-    ax[1, 1].set_ylabel('P_batt')
+    t = np.arange(0, T, 1)
+    fig, ax = plt.subplots(5, 1)
+    ax[0].step(t, E)
+    ax[0].set_ylabel('E')
+    ax[1].step(t, P_batt)
+    ax[1].set_ylabel('P_batt')
+    ax[2].step(t, P_eng)
+    ax[2].set_ylabel('P_eng')
+    ax[3].step(t, z)
+    ax[3].set_ylabel('z')
+    ax[4].step(t, s)
+    ax[4].set_ylabel('s')
+
     plt.show(block=False)
 
 
-
-
-    # z  = x_cvx(1: T);
-    # P_eng   = x_cvx(end - 4 * T + 2: end - 3 * T + 1);
-    # P_batt  = x_cvx(end - 3 * T + 2: end - 2 * T + 1);
-    # E_batt  = x_cvx(end - 2 * T + 2: end - T + 1);
-
-    # % Plotting the results
-    # figure
-    # subplot(411)
-    # plot(0: T, [E_0; E_batt])
-    # axis([0, 72, 0, E_max])
-    # subplot(412)
-    # plot(0: T, [P_batt; 0]);
-    # axis([0, 72, -2, 2])
-    # subplot(413)
-    # plot(0: T, [P_eng; 0]);
-    # axis([0, 72, 0, 1])
-    # subplot(414)
-    # plot(0: T, [eng_on; 0]);
-    # axis([0, 72, 0, 1])
-
-
+    # Print
+    print("Optimal cost: %.4e" % (work.upper_glob + r))
 
     import ipdb; ipdb.set_trace()

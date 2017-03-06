@@ -47,8 +47,8 @@ def generate_example(T):
     tau = 4.    # length of the time interval
 
     # Constraints on electric charge
-    E_max = 200.  # Maximum charge
-    E_0 = 200.    # Initial charge
+    E_max = 40.  # Maximum charge
+    E_0 = 40.    # Initial charge
     x0 = E_0      # Initial state
 
     # Constraints on power
@@ -59,9 +59,9 @@ def generate_example(T):
 
     # Define quadratic cost
     alpha = 1.   # quadratic term
-    beta = 10.   # linear term
-    gamma = 1.5  # constant term
-    delta = 10.  # cost of turning on the switches
+    beta = 1.   # linear term
+    gamma = 1  # constant term
+    delta = 1.  # cost of turning on the switches
     eta = 0.1    # Penalty on last stage
 
     n_u = 4                  # Size of inputs
@@ -167,13 +167,14 @@ def generate_example(T):
     Generate cost function
     '''
     P = spa.csc_matrix((n, n))
-    q = np.empty((n))
+    q = np.zeros(n)
+    r = 0.
 
     # eta * (E_T - E_max)
     P_temp = np.zeros((n, n))
     P_temp[-1, -1] = eta
     q_temp = np.zeros(n)
-    q_temp[-1] = -eta * E_max
+    q_temp[-1] = -2 * eta * E_max
 
     P += spa.csc_matrix(P_temp)
     q += q_temp
@@ -195,9 +196,15 @@ def generate_example(T):
     q_temp = np.tile(q_temp, T)
     q_temp = np.append(q_temp, np.zeros(n_x * T))
 
+    r_temp = eta * (E_max ** 2)
+
     P += spa.csc_matrix(P_temp)
     q += q_temp
+    r += r_temp
 
+
+    # Adjust P so that the objective is 0.5 * x' * P * x
+    P = 2.0 * P
 
     '''
     Generate vector of indeces for integer variables
@@ -207,4 +214,7 @@ def generate_example(T):
     i_idx_bin = np.append(i_idx_bin, np.zeros(n_x * T))
     i_idx = np.flatnonzero(i_idx_bin)
 
-    return P, q, A, l, u, i_idx
+
+    # import ipdb; ipdb.set_trace()
+
+    return P, q, A, l, u, r, i_idx

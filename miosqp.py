@@ -116,7 +116,7 @@ class Data(object):
         # Extend problem with new constraints to accomodate integral constraints
         #
         self.A, self.l, self.u = add_bounds(i_idx, -np.inf, np.inf, A, l, u)
-        
+
         #
         # I_int = spa.identity(self.n).tocsc()
         # I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
