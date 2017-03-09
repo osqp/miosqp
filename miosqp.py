@@ -25,7 +25,6 @@ from os.path import splitext
 import matplotlib.pylab as plt
 
 
-import pdb
 
 # Solver statuses
 MI_UNSOLVED = 'Unolved'
@@ -34,9 +33,6 @@ MI_INFEASIBLE = 'Infeasible'
 MI_UNBOUNDED = 'Unbounded'
 MI_MAX_ITER_FEASIBLE = 'Max-iter feasible'
 MI_MAX_ITER_UNSOLVED = 'Max-iter unsolved'
-
-# Printing interval constant
-PRINT_INTERVAL = 1
 
 
 def add_bounds(i_idx, l_new, u_new, A, l, u):
@@ -255,8 +251,8 @@ class Node(object):
         self.status = results.info.status_val
 
         # DEBUG: Problems that hit max_iter are infeasible
-        if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
-            self.status = self.solver.constant('OSQP_INFEASIBLE')
+        # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+            # self.status = self.solver.constant('OSQP_INFEASIBLE')
 
         # Store number of iterations
         self.num_iter = results.info.iter
@@ -694,10 +690,12 @@ class Workspace(object):
                 #     pickle.dump(problem, f)
                 # import pdb; pdb.set_trace()
 
+            if self.iter_num == 5000:
+                import ipdb; ipdb.set_trace()
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
 
-            if (self.iter_num % (PRINT_INTERVAL) == 0) and \
+            if (self.iter_num % (self.settings['print_interval']) == 0) and \
                 self.settings['verbose']:
                 # Print progress
                 self.print_progress(leaf)

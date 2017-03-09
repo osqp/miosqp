@@ -57,17 +57,18 @@ if __name__ == "__main__":
 
 
     # Enforce integer variables to be binary => {0, 1}
-    I_int = spa.identity(n).tocsc()
-    I_int = I_int[i_idx, :]
-    l_int = np.empty((n,))
-    l_int.fill(0.)
-    l_int = l_int[i_idx]
-    u_int = np.empty((n,))
-    u_int.fill(1)
-    u_int = u_int[i_idx]
-    A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
-    l = np.append(l, l_int)         # Extend problem constraints
-    u = np.append(u, u_int)         # Extend problem constraints
+    # I_int = spa.identity(n).tocsc()
+    # I_int = I_int[i_idx, :]
+    # l_int = np.empty((n,))
+    # l_int.fill(0.)
+    # l_int = l_int[i_idx]
+    # u_int = np.empty((n,))
+    # u_int.fill(1)
+    # u_int = u_int[i_idx]
+    # A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+    # l = np.append(l, l_int)         # Extend problem constraints
+    # u = np.append(u, u_int)         # Extend problem constraints
+    A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
 
 
 
@@ -90,7 +91,8 @@ if __name__ == "__main__":
                                                 #   [1] two-phase: depth first  until first incumbent and then  best bound
                        'branching_rule': 0,     # branching rule
                                                 #   [0] max fractional part
-                       'verbose': True}
+                       'verbose': True,
+                       'print_interval': 1}
 
     osqp_settings = {'eps_abs': 1e-04,
                      'eps_rel': 1e-04,

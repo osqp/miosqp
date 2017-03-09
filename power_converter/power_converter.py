@@ -415,14 +415,12 @@ class Model(object):
 
         # Update bounds
         SA_tildex0 = qp.SA_tilde.dot(x0)
-        qp.u[:3 * N] = SA_tildex0
-        qp.l[:3 * N] = -SA_tildex0
+        qp.u[:6 * N] = SA_tildex0
+        qp.l[:6 * N] = -SA_tildex0
 
-        import ipdb; ipdb.set_trace()
-        
         # Solve problem
         prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
-        res = prob.solve(solver=mpbpy.GUROBI)
+        res = prob.solve(solver=mpbpy.GUROBI, verbose=False)
 
         return res.x, res.obj_val, res.cputime
 
@@ -453,9 +451,9 @@ class Model(object):
 
 
         # Preallocate vectors of results
-        X = np.zeros((nx, T_final))
-        U = np.zeros((ny, T_final))
-        Y = np.zeros((nu, T_final))
+        X = np.zeros((nx, T_final + 1))
+        U = np.zeros((nu, T_final))
+        Y = np.zeros((ny, T_final))
         solve_times = np.zeros(T_final)  # Computing times
         obj_vals = np.zeros(T_final)     # Objective values
 
@@ -463,7 +461,6 @@ class Model(object):
         # Set initial statte
         X[:, 0] = self.init_conditions.x0
 
-        import ipdb; ipdb.set_trace()
         # Run loop
         for i in range(T_final):
 
@@ -471,4 +468,9 @@ class Model(object):
             U[:, i], obj_vals[i], solve_times[i] = self.compute_mpc_input(X[:, i])
 
             # Simulate one step
-            X[:, i+1], Y[:, i+1] = self.simulate_one_step(X[:, i], U[:, i])
+            X[:, i+1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
+
+        import matplotlib.pylab as plt
+        plt.figure()
+        plt.plot(X[1, :])
+        plt.show(block=False)
