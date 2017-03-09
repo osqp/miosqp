@@ -108,4 +108,4 @@ Run simulations
 # Generate extended adp model
 adp_model = model.gen_adp_model(params, fsw_des, delta)
 
-#
+# Simulate model

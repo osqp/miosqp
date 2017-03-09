@@ -89,7 +89,6 @@ def get_params(Ts, freq, k1, k2):
               'invP': invP,
               'freq': freq,
               'Ts': Ts,
-              'Acur': Acur,
               'k1': k1,
               'k2': k2
               }
@@ -205,12 +204,12 @@ def gen_adp_model(params, fsw_des, delta):
                   [Xm/taur, 0., -1./taur, -omegar],
                   [0., Xm/taur, omegar, -1./taur]])
 
-    G = Xr / D * Vdc / 2. * np.array([[1., 0], [0., 1], [0., 0.], [0., 0.]]) * P
+    G = Xr / D * Vdc / 2. * np.array([[1., 0], [0., 1], [0., 0.], [0., 0.]]).dot(P)
 
 
     # Discretize physical system
     A_phys = sla.expm(F * Tspu)
-    B_phys = -(nla.inv(F) * (np.eye(A_phys.shape[0]) - A_phys) * G)
+    B_phys = -(nla.inv(F).dot(np.eye(A_phys.shape[0]) - A_phys).dot(G))
 
 
     # Concatenate oscillating states
@@ -269,8 +268,25 @@ def gen_adp_model(params, fsw_des, delta):
     Generate matrix of possible input combinations
     '''
     M = np.zeros((3, 27))
-    M[0, :] = np.hstack((-np.ones((1, 0)), np.zeros((1, 9)), np.ones((1, 9))))
-    M[1, 0] =
+    M[0, :] = np.hstack((-np.ones((1, 9)), np.zeros((1, 9)), np.ones((1, 9))))
+    M[1, :] = np.tile(np.hstack((-np.ones((1, 3)), np.zeros((1, 3)),
+                                 np.ones((1, 3)))), (1, 3))
+    M[2, :] = np.tile(np.array([-1, 0, 1]), (1, 9))
+
+
+    '''
+    Define and return model
+    '''
+    model = {'A': A,
+             'B': B,
+             'C': C,
+             'W': W,
+             'G': G,
+             'T': T,
+             'M': M}
+
+    return model
+
 
 
 
