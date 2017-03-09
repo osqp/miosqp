@@ -3,6 +3,11 @@ import numpy.linalg as nla
 import scipy.linalg as sla
 import math
 
+
+# Import mathprogbasepy
+import mathprogbasepy as mpbpy
+
+
 # Internal functions and objects
 from tail_cost import TailCost
 from quadratic_program import MIQP
@@ -277,7 +282,7 @@ class Params(object):
         '''
         omegab = 2 * math.pi * freq
         Tspu = Ts * omegab
-        Nstpp = 1./freq/Ts  # Number of steps per period
+        Nstpp = int(1./freq/Ts)  # Number of steps per period
 
 
         '''
@@ -396,6 +401,41 @@ class Model(object):
             self.tail_cost.compute(self.dyn_system, N_tail)
 
 
+
+    def compute_mpc_input(self, x0):
+        """
+        Compute MPC input at initial state x0
+        """
+        qp = self.qp_matrices
+
+        N = qp.N
+
+        # Update objective
+        q = 2. * (qp.q_x.dot(x0) + qp.q_u)
+
+        # Update bounds
+        SA_tildex0 = qp.SA_tilde.dot(x0)
+        qp.u[:3 * N] = SA_tildex0
+        qp.l[:3 * N] = -SA_tildex0
+
+        import ipdb; ipdb.set_trace()
+        
+        # Solve problem
+        prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
+        res = prob.solve(solver=mpbpy.GUROBI)
+
+        return res.x, res.obj_val, res.cputime
+
+    def simulate_one_step(self, x, u):
+        """
+        Simulate power converter for one step
+        """
+        xnew = self.dyn_system.A.dot(x) + self.dyn_system.B.dot(u)
+        ynew = self.dyn_system.C.dot(x)
+
+
+        return xnew, ynew
+
     def simulate_cl(self, N, steady_trans):
         """
         Perform closed loop simulation
@@ -414,7 +454,7 @@ class Model(object):
 
         # Preallocate vectors of results
         X = np.zeros((nx, T_final))
-        Y = np.zeros((ny, T_final))
+        U = np.zeros((ny, T_final))
         Y = np.zeros((nu, T_final))
         solve_times = np.zeros(T_final)  # Computing times
         obj_vals = np.zeros(T_final)     # Objective values
@@ -423,5 +463,12 @@ class Model(object):
         # Set initial statte
         X[:, 0] = self.init_conditions.x0
 
+        import ipdb; ipdb.set_trace()
+        # Run loop
+        for i in range(T_final):
 
-        
+            # Compute mpc inputs
+            U[:, i], obj_vals[i], solve_times[i] = self.compute_mpc_input(X[:, i])
+
+            # Simulate one step
+            X[:, i+1], Y[:, i+1] = self.simulate_one_step(X[:, i], U[:, i])

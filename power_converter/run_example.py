@@ -17,8 +17,8 @@ Ts = 25.0e-06            # Sampling time
 freq = 50.               # Switching frequency
 torque = 1.              # Desired torque
 t0 = 0.0                 # Initial time
-init_periods = 4         # Number of integer period to settle before simulation
-sim_periods = 20         # Numer of simulated periods
+init_periods = 2         # Number of integer period to settle before simulation
+sim_periods = 3          # Numer of simulated periods
 flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 
 
@@ -42,13 +42,13 @@ Setup model
 model = Model()
 
 # Set model parameters
-model.set_params(Ts, freq, k1, k2)
+model.set_params(Ts, freq, k1, k2, torque)
 
 # Set simulation time
 model.set_time(t0, init_periods, sim_periods)
 
-# Set initial conditions given the desired torque
-model.set_initial_conditions(torque)
+# Set initial conditions
+model.set_initial_conditions()
 
 '''
 Allocate output statistics
@@ -72,4 +72,4 @@ model.gen_dynamical_system(fsw_des, delta)
 model.gen_tail_cost(N_tail, gamma, name='tailBackupN1Delta4.00.mat')
 
 # Simulate model
-model.simulate_cl(N_adp)
+model.simulate_cl(N_adp, flag_steady_trans)

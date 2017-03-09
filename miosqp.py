@@ -246,7 +246,7 @@ class Node(object):
         self.solver.update(l=self.l, u=self.u)
 
         # Warm start solver with currently stored solution
-        # self.solver.warm_start(x=self.x, y=self.y)
+        self.solver.warm_start(x=self.x, y=self.y)
 
         # Solve current problem
         results = self.solver.solve()
@@ -255,8 +255,8 @@ class Node(object):
         self.status = results.info.status_val
 
         # DEBUG: Problems that hit max_iter are infeasible
-        # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
-            # self.status = self.solver.constant('OSQP_INFEASIBLE')
+        if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+            self.status = self.solver.constant('OSQP_INFEASIBLE')
 
         # Store number of iterations
         self.num_iter = results.info.iter

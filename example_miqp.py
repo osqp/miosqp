@@ -23,9 +23,9 @@ if __name__ == "__main__":
 
 
     # Nasty problem
-    # n = 100
-    # m = 500
-    # np.random.seed(7)
+    n = 100
+    m = 500
+    np.random.seed(7)
 
     # Random Example
     # n = 50
@@ -33,9 +33,9 @@ if __name__ == "__main__":
     # np.random.seed(7)
 
     # Other example
-    n = 20
-    m = 30
-    np.random.seed(7)
+    # n = 20
+    # m = 30
+    # np.random.seed(7)
 
 
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     print("GUROBI")
     print("------")
-    print("Objective value       %.4e" % resGUROBI.objval)
+    print("Objective value       %.4e" % resGUROBI.obj_val)
     print("Elapsed time          %.4e" % resGUROBI.cputime)
 
     # print("CPLEX")

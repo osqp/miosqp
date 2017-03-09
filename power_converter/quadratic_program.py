@@ -67,8 +67,8 @@ class MIQP(object):
 
 
         # Quadratic form matrices
-        qp_P = B_tilde.T.dot(Hx).dot(B_tilde) + \
-            (gamma**N) * B_tilde_end.T.dot(P0).dot(B_tilde_end)
+        qp_P = 2. * (B_tilde.T.dot(Hx).dot(B_tilde) + \
+            (gamma**N) * B_tilde_end.T.dot(P0).dot(B_tilde_end))
         qp_q_x = B_tilde.T.dot(Hx.T).dot(A_tilde) + \
             (gamma ** N) * (B_tilde_end).T.dot(P0).dot(A_tilde_end)
         qp_q_u = (gamma ** N) * B_tilde_end.T.dot(q0)
@@ -104,7 +104,11 @@ class MIQP(object):
         qp_SA_tilde = S.dot(A_tilde)
 
 
-        import ipdb; ipdb.set_trace()
+
+        # Index of integer variables
+        i_idx = np.arange(nu * N)
+
+
 
         '''
         Define problem matrices
@@ -121,3 +125,5 @@ class MIQP(object):
         self.const_P = qp_const_P
         self.const_q = qp_const_q
         self.const_r = qp_const_r
+        self.N = N
+        self.i_idx = i_idx

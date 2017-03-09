@@ -61,7 +61,7 @@ def run_example():
 
     work = miosqp.miosqp_solve(P, q, A, l, u, i_idx,
                                miosqp_settings, osqp_settings,
-                               resGUROBI.x
+                            #    resGUROBI.x
                                )
 
 
