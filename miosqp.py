@@ -25,7 +25,6 @@ from os.path import splitext
 import matplotlib.pylab as plt
 
 
-import pdb
 
 # Solver statuses
 MI_UNSOLVED = 'Unolved'
@@ -35,8 +34,37 @@ MI_UNBOUNDED = 'Unbounded'
 MI_MAX_ITER_FEASIBLE = 'Max-iter feasible'
 MI_MAX_ITER_UNSOLVED = 'Max-iter unsolved'
 
-# Printing interval constant
-PRINT_INTERVAL = 1
+
+def add_bounds(i_idx, l_new, u_new, A, l, u):
+    """
+    Add new bounds on the variables
+
+        l_new <= x_i <= u_new for i in i_idx
+
+    It is done by adding rows to the contraints
+
+        l <= A x <= u
+    """
+
+    n = A.shape[1]
+
+    # Enforce integer variables to be binary => {0, 1}
+    I_int = spa.identity(n).tocsc()
+    I_int = I_int[i_idx, :]
+    l_int = np.empty((n,))
+    l_int.fill(l_new)
+    l_int = l_int[i_idx]
+    u_int = np.empty((n,))
+    u_int.fill(u_new)
+    u_int = u_int[i_idx]
+    A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+    l = np.append(l, l_int)         # Extend problem constraints
+    u = np.append(u, u_int)         # Extend problem constraints
+
+    return A, l, u
+
+
+
 
 class Data(object):
     """
@@ -83,21 +111,24 @@ class Data(object):
         #
         # Extend problem with new constraints to accomodate integral constraints
         #
-        I_int = spa.identity(self.n).tocsc()
-        I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
-                                    # the identity relative to the integer variables
+        self.A, self.l, self.u = add_bounds(i_idx, -np.inf, np.inf, A, l, u)
 
-        # Extend the bounds only for the variables which are integer
-        l_int = np.empty((self.n,))
-        l_int.fill(-np.inf)
-        l_int = l_int[i_idx]
-        u_int = np.empty((self.n,))
-        u_int.fill(np.inf)
-        u_int = u_int[i_idx]
-
-        self.A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
-        self.l = np.append(l, l_int)         # Extend problem constraints
-        self.u = np.append(u, u_int)         # Extend problem constraints
+        #
+        # I_int = spa.identity(self.n).tocsc()
+        # I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
+        #                             # the identity relative to the integer variables
+        #
+        # # Extend the bounds only for the variables which are integer
+        # l_int = np.empty((self.n,))
+        # l_int.fill(-np.inf)
+        # l_int = l_int[i_idx]
+        # u_int = np.empty((self.n,))
+        # u_int.fill(np.inf)
+        # u_int = u_int[i_idx]
+        #
+        # self.A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+        # self.l = np.append(l, l_int)         # Extend problem constraints
+        # self.u = np.append(u, u_int)         # Extend problem constraints
 
         #
         # Define problem cost function
@@ -207,11 +238,13 @@ class Node(object):
         """
         Find lower bound of the relaxed problem corresponding to this node
         """
+
+
         # Update l and u in the solver instance
         self.solver.update(l=self.l, u=self.u)
 
         # Warm start solver with currently stored solution
-        # self.solver.warm_start(x=self.x, y=self.y)
+        self.solver.warm_start(x=self.x, y=self.y)
 
         # Solve current problem
         results = self.solver.solve()
@@ -306,6 +339,7 @@ class Workspace(object):
 
         # Define runtime
         self.run_time = 0
+
 
     def can_continue(self):
         """
@@ -521,6 +555,7 @@ class Workspace(object):
             obj_int = self.data.compute_obj_val(x_int)
             if obj_int < self.upper_glob:
                 self.upper_glob = obj_int
+                self.x = x_int
                 self.prune()
 
         # 5) If we got here, branch current leaf producing two children
@@ -662,13 +697,14 @@ class Workspace(object):
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
 
-            if (self.iter_num % (PRINT_INTERVAL) == 0) and \
+            if (self.iter_num % (self.settings['print_interval']) == 0) and \
                 self.settings['verbose']:
                 # Print progress
                 self.print_progress(leaf)
 
             # Delete leaf object
             del(leaf)
+
 
             # Update iteration number
             self.iter_num += 1
