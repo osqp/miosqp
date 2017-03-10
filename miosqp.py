@@ -173,6 +173,8 @@ class Node(object):
         qp solver return status
     num_iter: int
         number of OSQP ADMM iterations
+    osqp_solve_time: int
+        time to solve QP problem
     solver: solver
         QP solver object instance
     nextvar_idx: int
@@ -217,6 +219,9 @@ class Node(object):
         # Number of OSQP ADMM iterations
         self.num_iter = 0
 
+        # Time to solve the QP
+        self.osqp_solve_time = 0
+
         # Warm-start variables which are also the relaxed solutions
         if x0 is None:
             x0 = np.zeros(self.data.n)
@@ -259,6 +264,9 @@ class Node(object):
         # Store number of iterations
         self.num_iter = results.info.iter
 
+        # Store solve time
+        self.osqp_solve_time = results.info.run_time
+
         # Store solver solution
         self.x = results.x
         self.y = results.y
@@ -289,6 +297,8 @@ class Workspace(object):
         number of iterations
     osqp_iter: int
         number of osqp admm iteration
+    osqp_solve_time: float
+        total time required to solve OSQP problems
     run_time: double
         runtime of the algorithm
     upper_glob: double
@@ -314,6 +324,7 @@ class Workspace(object):
 
         # Define other internal variables
         self.iter_num = 1
+        self.osqp_solve_time = 0.
         self.osqp_iter = 0
         self.lower_glob = -np.inf
         self.status = MI_UNSOLVED
@@ -520,6 +531,9 @@ class Workspace(object):
 
         # Update total number of OSQP ADMM iteration
         self.osqp_iter += leaf.num_iter
+
+        # Update total time to solve OSQP problems
+        self.osqp_solve_time += leaf.osqp_solve_time
 
         # 1) If infeasible or unbounded, then return (prune)
         if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \

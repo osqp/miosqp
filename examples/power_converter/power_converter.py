@@ -430,7 +430,7 @@ class Model(object):
         if solver == 'gurobi':
             # Solve problem
             prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
-            res = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+            res = prob.solve(solver=mpbpy.GUROBI, verbose=False, Presolve=0)
             u = res.x
             obj_val = res.obj_val
             solve_time = res.cputime
