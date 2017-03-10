@@ -102,15 +102,15 @@ class MIQP(object):
         qp_u = np.append(np.zeros(6 * N), np.ones(3 * N))
 
         # lower bound
-        qp_l = - qp_u
+        qp_l = np.append(-np.inf * np.ones(6 * N), -np.ones(3 * N))
 
 
-        # Constrain bounds to be within -1 and 1 TODO: Maybe not necessary!
-        # u_sw_idx = np.append(np.ones(3), np.zeros(3))
-        # u_sw_idx = np.tile(u_sw_idx, N)
-        # u_sw_idx = np.flatnonzero(u_sw_idx)
-        # qp_A, qp_l, qp_u = self.add_bounds(u_sw_idx, -1., 1.,
-        #                                    qp_A, qp_l, qp_u)
+        # Constrain bounds to be within -1 and 1
+        u_sw_idx = np.append(np.ones(3), np.zeros(3))
+        u_sw_idx = np.tile(u_sw_idx, N)
+        u_sw_idx = np.flatnonzero(u_sw_idx)
+        qp_A, qp_l, qp_u = self.add_bounds(u_sw_idx, -1., 1.,
+                                           qp_A, qp_l, qp_u)
 
 
         # SA_tilde needed to update bounds

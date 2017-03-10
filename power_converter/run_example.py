@@ -3,11 +3,9 @@ Simulate inverter model with ADP formulation from the paper
 "High-Speed Finite Control Set Model Predictive Control for Power Electronics", B. Stellato, T. Geyer and P. Goulart
 
 """
-import numpy as np
 
 # Power converter model files
 from power_converter import Model
-from tail_cost import TailCost
 
 
 '''
@@ -17,8 +15,8 @@ Ts = 25.0e-06            # Sampling time
 freq = 50.               # Switching frequency
 torque = 1.              # Desired torque
 t0 = 0.0                 # Initial time
-init_periods = 2         # Number of integer period to settle before simulation
-sim_periods = 3          # Numer of simulated periods
+init_periods = 1         # Number of integer period to settle before simulation
+sim_periods = 1          # Numer of simulated periods
 flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 
 
@@ -72,4 +70,4 @@ model.gen_dynamical_system(fsw_des, delta)
 model.gen_tail_cost(N_tail, gamma, name='tailBackupN1Delta4.00.mat')
 
 # Simulate model
-model.simulate_cl(N_adp, flag_steady_trans)
+stats = model.simulate_cl(N_adp, flag_steady_trans)

@@ -2,6 +2,7 @@ import numpy as np
 import numpy.linalg as nla
 import scipy.linalg as sla
 import math
+import utils
 
 
 # Import mathprogbasepy
@@ -12,10 +13,30 @@ import mathprogbasepy as mpbpy
 from tail_cost import TailCost
 from quadratic_program import MIQP
 
+
+class Statistics(object):
+    def __init__(self, fsw, thd):
+        self.fsw = fsw
+        self.thd = thd
+
+class SimulationResults(object):
+    """
+    Simulation results signals
+    """
+
+    def __init__(self, X, U, Y_phase, Y_star_phase, T_e, T_e_des):
+        self.X = X
+        self.U = U
+        self.Y_phase = Y_phase
+        self.Y_star_phase = Y_star_phase
+        self.T_e = T_e
+        self.T_e_des = T_e_des
+
 class DynamicalSystem(object):
     """
     Power converter dynamical system
     """
+
     def __init__(self, params, fsw_des, delta):
         """
         Generate extended ADP model
@@ -45,47 +66,42 @@ class DynamicalSystem(object):
         k2 = params.k2
         Ts = params.Ts
 
-
         '''
         Generate individual system matrices
         '''
         # Physical system matrices
-        F = np.array([[-1./taus, 0., Xm/(taur * D), omegar*Xm/D],
-                      [0., -1./taus, -omegar*Xm/D, Xm/(taur * D)],
-                      [Xm/taur, 0., -1./taur, -omegar],
-                      [0., Xm/taur, omegar, -1./taur]])
+        F = np.array([[-1. / taus, 0., Xm / (taur * D), omegar * Xm / D],
+                      [0., -1. / taus, -omegar * Xm / D, Xm / (taur * D)],
+                      [Xm / taur, 0., -1. / taur, -omegar],
+                      [0., Xm / taur, omegar, -1. / taur]])
 
         G = Xr / D * Vdc / 2. * \
             np.array([[1., 0], [0., 1], [0., 0.], [0., 0.]]).dot(P)
-
 
         # Discretize physical system
         A_phys = sla.expm(F * Tspu)
         B_phys = -(nla.inv(F).dot(np.eye(A_phys.shape[0]) - A_phys).dot(G))
 
-
         # Concatenate oscillating states
         A_osc = np.array([[np.cos(Tspu), -np.sin(Tspu)],
-                         [np.sin(Tspu), np.cos(Tspu)]])
+                          [np.sin(Tspu), np.cos(Tspu)]])
         B_osc = np.zeros((2, 3))
 
         # Concatenate previous input as a state
         A_prev = np.zeros((3, 3))
         B_prev = np.eye(3)
 
-
         # Concatenate filter states
-        a1 = 1. - 1./k1
-        a2 = 1. - 1./k2
+        a1 = 1. - 1. / k1
+        a2 = 1. - 1. / k2
 
         A_sw = np.array([[a1, 0.],
                          [(1. - a1), a2]])
         # NB 1: Please note the 1 / 12 division to average over all the physical switches
-        # NB 2: Please note the 1/fsw_des division to normalize switching frequency
-        B_sw = 1./ fsw_des * 1./12. * (1 - a1) / Ts * \
+        # NB 2: Please note the 1/fsw_des division to normalize switching
+        # frequency
+        B_sw = 1. / fsw_des * 1. / 12. * (1 - a1) / Ts * \
             np.array([[1., 1., 1.], [0., 0., 0.]])
-
-
 
         # Concatenate switching frequency state
         A_fsw = np.array([[1.]])
@@ -100,9 +116,8 @@ class DynamicalSystem(object):
                      [np.zeros((2, 3)), B_sw],
                      [np.zeros((1, 6))]])
         C = np.array([[1., 0., 0., 0., -1., 0., 0., 0., 0., 0., 0., 0.],
-                      [0., 1., 0., 0., 0., -1., 0., 0., 0., 0., 0., 0.,],
+                      [0., 1., 0., 0., 0., -1., 0., 0., 0., 0., 0., 0., ],
                       [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., -delta, delta]])
-
 
         '''
         Extract previous input from data
@@ -115,16 +130,15 @@ class DynamicalSystem(object):
         G = np.hstack((np.eye(3), np.zeros((3, 3))))
         T = np.hstack((np.zeros((3, 3)), np.eye(3)))
 
-
         '''
         Generate matrix of possible input combinations
         '''
         M = np.zeros((3, 27))
-        M[0, :] = np.hstack((-np.ones((1, 9)), np.zeros((1, 9)), np.ones((1, 9))))
+        M[0, :] = np.hstack(
+            (-np.ones((1, 9)), np.zeros((1, 9)), np.ones((1, 9))))
         M[1, :] = np.tile(np.hstack((-np.ones((1, 3)), np.zeros((1, 3)),
                                      np.ones((1, 3)))), (1, 3))
         M[2, :] = np.tile(np.array([-1, 0, 1]), (1, 9))
-
 
         '''
         Define system attributes
@@ -138,9 +152,6 @@ class DynamicalSystem(object):
         self.M = M
         self.fsw_des = fsw_des
         self.delta = delta
-
-
-
 
 
 class InitialConditions(object):
@@ -160,7 +171,7 @@ class InitialConditions(object):
 
         # Compute steady state values with T
         x0 = self.get_initial_states(params, torque, 1)
-        x_null_torque = self.get_initial_states( params, 0., 1. )
+        x_null_torque = self.get_initial_states(params, 0., 1.)
 
         # Previous input
         uprev = np.array([0., 0., 0.])
@@ -177,8 +188,6 @@ class InitialConditions(object):
 
         self.x0 = np.concatenate((x0, x0[:2], uprev, np.array([1., 1., 1.])))
         self.cur_step_torque = cur_step_torque
-
-
 
     def get_initial_states(self, params, T, psiS_mag):
         """
@@ -198,7 +207,6 @@ class InitialConditions(object):
             x0 (array): initial state [i_s, phi_r]
         """
 
-
         # Get parameters
         Rs = params.Rs
         Rr = params.Rr
@@ -208,16 +216,15 @@ class InitialConditions(object):
         D = params.D
         kT = params.kT  # Torque constant to correct [pu]
 
-
         # Stator flux components
         psiSa = psiS_mag
         psiSb = 0
 
         # PsiR alpha and beta components
-        psiRb = -T/psiS_mag * D / Xm / kT
-        dis = np.sqrt((Xm**2)*(psiSa**2) - 4. * (Xss**2) * (psiRb**2))
-        psiRa1 = (Xm*psiSa + dis)/(2. * Xss)
-        psiRa2 = (Xm*psiSa - dis)/(2*Xss)
+        psiRb = -T / psiS_mag * D / Xm / kT
+        dis = np.sqrt((Xm**2) * (psiSa**2) - 4. * (Xss**2) * (psiRb**2))
+        psiRa1 = (Xm * psiSa + dis) / (2. * Xss)
+        psiRa2 = (Xm * psiSa - dis) / (2 * Xss)
 
         psiRa = psiRa1  # make sure that this is always the correct choice!
 
@@ -229,9 +236,8 @@ class InitialConditions(object):
         PsiR = np.array([psiRa, psiRb])
 
         # Initialize the transformation matrix M
-        M = 1./ D * np.array([[Xrr, 0, -Xm, 0.],
-                              [0, Xrr, 0, -Xm]])
-
+        M = 1. / D * np.array([[Xrr, 0, -Xm, 0.],
+                               [0, Xrr, 0, -Xm]])
 
         # Stator currents in alpha/beta
         Is = M.dot(np.append(PsiS, PsiR))
@@ -269,7 +275,7 @@ class Params(object):
         Xm = 2.3489   # Mutual
 
         # Rotor speed
-        omegar = 0.9911 # Nominal speed
+        omegar = 0.9911  # Nominal speed
 
         # Voltages
         Vdc = 1.930
@@ -282,8 +288,7 @@ class Params(object):
         '''
         omegab = 2 * math.pi * freq
         Tspu = Ts * omegab
-        Nstpp = int(1./freq/Ts)  # Number of steps per period
-
+        Nstpp = int(1. / freq / Ts)  # Number of steps per period
 
         '''
         Compute intermediate parameters
@@ -298,17 +303,15 @@ class Params(object):
         taus = (Xr * D) / (Rs * (Xr**2) + Rr * (Xm ** 2))
         taur = Xr / Rr
 
-
         '''
         Define Park transformation and its inverse
         '''
-        P = 2./3. * np.array([[1.0, -1./2., -1./2.],
-                              [0.0, np.sqrt(3.)/2., -np.sqrt(3.)/2.]])
+        P = 2. / 3. * np.array([[1.0, -1. / 2., -1. / 2.],
+                                [0.0, np.sqrt(3.) / 2., -np.sqrt(3.) / 2.]])
 
-        invP = np.array([ [1., 0.],
-                          [-1./2., np.sqrt(3.)/2.],
-                          [-1./2., -np.sqrt(3.)/2.]])
-
+        invP = np.array([[1., 0.],
+                         [-1. / 2., np.sqrt(3.) / 2.],
+                         [-1. / 2., -np.sqrt(3.) / 2.]])
 
         '''
         Store model parameters
@@ -347,11 +350,11 @@ class Time(object):
         """
         self.init_periods = init_periods
         self.sim_periods = sim_periods
+        self.Nstpp = Nstpp
         self.T_final = (init_periods + sim_periods) * Nstpp
         self.Ts = Ts
         self.t0 = t0
         self.t = np.linspace(t0, Ts * self.T_final, self.T_final + 1)
-
 
 
 class Model(object):
@@ -400,8 +403,6 @@ class Model(object):
         else:
             self.tail_cost.compute(self.dyn_system, N_tail)
 
-
-
     def compute_mpc_input(self, x0):
         """
         Compute MPC input at initial state x0
@@ -416,7 +417,7 @@ class Model(object):
         # Update bounds
         SA_tildex0 = qp.SA_tilde.dot(x0)
         qp.u[:6 * N] = SA_tildex0
-        qp.l[:6 * N] = -SA_tildex0
+        # qp.l[:6 * N] = -SA_tildex0
 
         # Solve problem
         prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
@@ -431,8 +432,74 @@ class Model(object):
         xnew = self.dyn_system.A.dot(x) + self.dyn_system.B.dot(u)
         ynew = self.dyn_system.C.dot(x)
 
-
         return xnew, ynew
+
+
+    def compute_signals(self, X):
+        """
+        Compute signals for plotting
+        """
+
+        T_final = self.time.T_final
+
+        # Phase currents
+        Y_phase = np.zeros((3, T_final))
+        for i in range(T_final):
+            Y_phase[:, i] = self.params.invP.dot(X[0:2, i])
+
+        # Referente currents
+        Y_star_phase = np.zeros((3, T_final))
+        for i in range(T_final):
+            Y_star_phase[:, i] = self.params.invP.dot(X[4:6, i])
+
+
+        # Compute torque
+        T_e = np.zeros(T_final)
+        for i in range(T_final):
+            T_e[i] = (self.params.Xm / self.params.Xr) * \
+                (X[2, i] * X[1, i] - X[3, i] * X[0, i])
+
+        T_e *= self.params.kT  # Torque constant normalization
+
+        # Desired torque
+        T_e_des = self.params.torque * np.ones(T_final)
+
+        return Y_phase, Y_star_phase, T_e, T_e_des
+
+    def get_statistics(self, results):
+        """
+        Get statistics of the results
+        """
+
+        # Get results
+        U = results.U
+        Y_phase = results.Y_phase
+
+        # Get switching frequency
+        init_periods = self.time.init_periods
+        sim_periods = self.time.sim_periods
+        Nstpp = self.params.Nstpp
+        T_final = self.time.T_final
+        N_sw = np.zeros(12)  # Number of changes per semiconductor device
+
+        for i in range(init_periods * Nstpp, T_final):
+            # Compute ON transitions for each stage of the simulation
+            N_sw += utils.compute_on_transitions(U[:3, i], U[:3, i-1])
+
+        freq_sw = N_sw / (self.params.freq * sim_periods)
+        fsw = np.mean(freq_sw)  # Compute average between 12 switches
+
+
+        # Get THD
+        t = self.time.t
+        t_init = init_periods * Nstpp
+        freq = self.params.freq
+
+        thd = utils.get_thd(Y_phase[:, t_init:].T, t[t_init + 1:], freq)
+
+
+        return Statistics(fsw, thd)
+
 
     def simulate_cl(self, N, steady_trans):
         """
@@ -445,10 +512,8 @@ class Model(object):
         ny = self.dyn_system.C.shape[0]
         T_final = self.time.T_final
 
-
         # Compute QP matrices
         self.qp_matrices = MIQP(self.dyn_system, N, self.tail_cost)
-
 
         # Preallocate vectors of results
         X = np.zeros((nx, T_final + 1))
@@ -457,7 +522,6 @@ class Model(object):
         solve_times = np.zeros(T_final)  # Computing times
         obj_vals = np.zeros(T_final)     # Objective values
 
-
         # Set initial statte
         X[:, 0] = self.init_conditions.x0
 
@@ -465,12 +529,23 @@ class Model(object):
         for i in range(T_final):
 
             # Compute mpc inputs
-            U[:, i], obj_vals[i], solve_times[i] = self.compute_mpc_input(X[:, i])
+            U[:, i], obj_vals[i], solve_times[
+                i] = self.compute_mpc_input(X[:, i])
 
             # Simulate one step
-            X[:, i+1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
+            X[:, i + 1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
 
-        import matplotlib.pylab as plt
-        plt.figure()
-        plt.plot(X[1, :])
-        plt.show(block=False)
+
+        # Compute additional signals for plotting
+        Y_phase, Y_star_phase, T_e, T_e_des = self.compute_signals(X)
+
+        # Create simulation results
+        results = SimulationResults(X, U, Y_phase, Y_star_phase, T_e, T_e_des)
+
+        # Plot results
+        utils.plot(results, self.time)
+
+        # Get statistics
+        stats = self.get_statistics(results)
+
+        return stats
