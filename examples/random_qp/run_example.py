@@ -64,8 +64,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
             P = spa.csc_matrix(np.dot(Pt.T, Pt))
             q = sp.randn(n)
             A = spa.random(m, n, density=dns_level)
-            u = 3 + sp.randn(m)
-            l = -3 + sp.randn(m)
+            u = 1 + sp.rand(m)
+            l = -1 + sp.rand(m)
 
             # Enforce [0, 1] bounds on variables
             A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
@@ -74,7 +74,9 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                 # Solve with gurobi
                 prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
                 res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
-                solve_time_temp[j] = res_gurobi.cputime
+                if res_gurobi.status != 'optimal':
+                    import ipdb; ipdb.set_trace()
+                solve_time_temp[j] = 1e3 * res_gurobi.cputime
 
             elif solver == 'miosqp':
                 # Define problem settings
@@ -102,7 +104,7 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                                            miosqp_settings, osqp_settings)
                 if work.status != miosqp.MI_SOLVED:
                     import ipdb; ipdb.set_trace()
-                solve_time_temp[j] = work.run_time
+                solve_time_temp[j] = 1e3 * work.run_time
 
 
 
@@ -141,9 +143,9 @@ if __name__ == "__main__":
 
     # Other problems n = q
     elif problem_set == 2:
-        n_arr = np.array([2, 4, 8, 12, 20, 25, 30])
+        n_arr = np.array([2, 4, 8, 12, 20, 25, 30, 35])
         m_arr = 5 * n_arr
-        q_arr = n_arr
+        p_arr = n_arr
 
     timings_gurobi = solve(n_arr, m_arr, p_arr, n_repeat,
                            density_level, random_seed, solver='gurobi')
