@@ -84,7 +84,7 @@ def compute_on_transitions(u, u_prev):
             on_transitions[i * 4 + 3] = 1
         elif u_prev[i] == -1 and u[i] == 0:
             on_transitions[i * 4 + 1] = 1
-
+    
     return on_transitions
 
 

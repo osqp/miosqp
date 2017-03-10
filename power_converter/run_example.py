@@ -16,7 +16,7 @@ freq = 50.               # Switching frequency
 torque = 1.              # Desired torque
 t0 = 0.0                 # Initial time
 init_periods = 1         # Number of integer period to settle before simulation
-sim_periods = 1          # Numer of simulated periods
+sim_periods = 3          # Numer of simulated periods
 flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 
 

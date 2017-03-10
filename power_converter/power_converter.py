@@ -4,6 +4,8 @@ import scipy.linalg as sla
 import math
 import utils
 
+# Import progress bar
+from tqdm import tqdm
 
 # Import mathprogbasepy
 import mathprogbasepy as mpbpy
@@ -486,9 +488,10 @@ class Model(object):
             # Compute ON transitions for each stage of the simulation
             N_sw += utils.compute_on_transitions(U[:3, i], U[:3, i-1])
 
-        freq_sw = N_sw / (self.params.freq * sim_periods)
+        freq_sw = N_sw / (1. / self.params.freq * sim_periods)
         fsw = np.mean(freq_sw)  # Compute average between 12 switches
 
+        import ipdb; ipdb.set_trace()
 
         # Get THD
         t = self.time.t
@@ -505,6 +508,8 @@ class Model(object):
         """
         Perform closed loop simulation
         """
+
+        print("Simulating closed loop N = %i" % N)
 
         # Rename some variables for notation ease
         nx = self.dyn_system.A.shape[0]
@@ -526,7 +531,7 @@ class Model(object):
         X[:, 0] = self.init_conditions.x0
 
         # Run loop
-        for i in range(T_final):
+        for i in tqdm(range(T_final)):
 
             # Compute mpc inputs
             U[:, i], obj_vals[i], solve_times[
