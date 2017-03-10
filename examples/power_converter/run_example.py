@@ -4,6 +4,10 @@ Simulate inverter model with ADP formulation from the paper
 
 """
 
+# Import numpy
+import numpy as np
+import pandas as pd
+
 # Power converter model files
 from power_converter import Model
 
@@ -15,17 +19,17 @@ Ts = 25.0e-06            # Sampling time
 freq = 50.               # Switching frequency
 torque = 1.              # Desired torque
 t0 = 0.0                 # Initial time
-init_periods = 4         # Number of integer period to settle before simulation
-sim_periods = 20         # Numer of simulated periods
+init_periods = 1         # Number of integer period to settle before simulation
+sim_periods = 2          # Numer of simulated periods
 flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 
 
 '''
 ADP Parameters
 '''
-gamma = 0.95           # Forgetting factor
-N_adp = 3              # Horizon length
-delta = 5.5            # Switching frequency penalty
+gamma = 0.95                # Forgetting factor
+N_adp = np.arange(1, 6)        # Horizon length
+delta = 5.5                 # Switching frequency penalty
 N_tail = 50
 
 # Switching filter parameters
@@ -70,4 +74,38 @@ model.gen_dynamical_system(fsw_des, delta)
 model.gen_tail_cost(N_tail, gamma, name='delta_550.mat')
 
 # Simulate model
-stats = model.simulate_cl(N_adp, flag_steady_trans, solver='gurobi')
+gurobi_avg_time = np.zeros(len(N_adp))
+gurobi_min_time = np.zeros(len(N_adp))
+gurobi_max_time = np.zeros(len(N_adp))
+
+miosqp_avg_time = np.zeros(len(N_adp))
+miosqp_min_time = np.zeros(len(N_adp))
+miosqp_max_time = np.zeros(len(N_adp))
+
+
+for i in range(len(N_adp)):
+
+    stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, solver='gurobi')
+
+    gurobi_avg_time[i] = stats_gurobi.avg_solve_time
+    gurobi_min_time[i] = stats_gurobi.min_solve_time
+    gurobi_max_time[i] = stats_gurobi.max_solve_time
+
+    stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, solver='miosqp')
+
+    miosqp_avg_time[i] = stats_miosqp.avg_solve_time
+    miosqp_min_time[i] = stats_miosqp.min_solve_time
+    miosqp_max_time[i] = stats_miosqp.max_solve_time
+
+
+# Create pandas dataframe
+timings = pd.DataFrame({ 'grb_avg' : gurobi_avg_time,
+                         'grb_min' : gurobi_min_time,
+                         'grb_max' : gurobi_max_time,
+                         'miosqp_avg' : miosqp_avg_time,
+                         'miosqp_min' : miosqp_min_time,
+                         'miosqp_max' : miosqp_max_time},
+                         index=N_adp)
+
+print("Results")
+print(timings)

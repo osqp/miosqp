@@ -10,11 +10,13 @@ from tqdm import tqdm
 # Import mathprogbasepy
 import mathprogbasepy as mpbpy
 
+# import miosqp solver
+import miosqp
+
 
 # Internal functions and objects
 from tail_cost import TailCost
 from quadratic_program import MIQP
-
 
 class Statistics(object):
     def __init__(self, fsw, thd, max_solve_time, min_solve_time, avg_solve_time):
@@ -429,37 +431,46 @@ class Model(object):
             # Solve problem
             prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
             res = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+            u = res.x
+            obj_val = res.obj_val
+            solve_time = res.cputime
+
         elif solver == 'miosqp':
             # Define problem settings
             miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
-                               'max_iter_bb': 10000,     # maximum number of iterations
+                               'max_iter_bb': 1000,     # maximum number of iterations
                                'tree_explor_rule': 1,   # tree exploration rule
                                                         #   [0] depth first
                                                         #   [1] two-phase: depth first  until first incumbent and then  best bound
                                'branching_rule': 0,     # branching rule
                                                         #   [0] max fractional part
-                               'verbose': True,
+                               'verbose': False,
                                'print_interval': 1}
 
             osqp_settings = {'eps_abs': 1e-04,
                              'eps_rel': 1e-04,
                              'eps_inf': 1e-04,
-                             'rho': 0.005,
-                             'sigma': 0.01,
+                             'rho': 0.0001,
+                             'sigma': 0.1,
                              'alpha': 1.5,
                              'polish': False,
                              'max_iter': 2000,
                              'verbose': False}
 
-            work = miosqp.miosqp_solve(P, q, A, l, u, i_idx,
-                                       miosqp_settings, osqp_settings)
 
-            import ipdb; ipdb.set_trace()
+            work = miosqp.miosqp_solve(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx,
+                                       miosqp_settings, osqp_settings)
+            if work.status != miosqp.MI_SOLVED:
+                import ipdb; ipdb.set_trace()
+            u = work.x
+            obj_val = work.upper_glob
+            solve_time = work.run_time
 
         # Get first input
-        u = res.x[:6]
+        u = u[:6]
 
-        return u, res.obj_val, res.cputime
+
+        return u, obj_val, solve_time
 
     def simulate_one_step(self, x, u):
         """
@@ -542,12 +553,13 @@ class Model(object):
                           max_solve_time, min_solve_time, avg_solve_time)
 
 
-    def simulate_cl(self, N, steady_trans, solver='gurobi'):
+    def simulate_cl(self, N, steady_trans, solver='gurobi', plot=False):
         """
         Perform closed loop simulation
         """
 
-        print("Simulating closed loop N = %i" % N)
+        print("Simulating closed loop N = %i with solver %s" % \
+              (N, solver))
 
         # Rename some variables for notation ease
         nx = self.dyn_system.A.shape[0]
@@ -586,8 +598,9 @@ class Model(object):
         results = SimulationResults(X, U, Y_phase, Y_star_phase, T_e, T_e_des,
                                     solve_times)
 
-        # Plot results
-        utils.plot(results, self.time)
+        if plot:
+            # Plot results
+            utils.plot(results, self.time)
 
         # Get statistics
         stats = self.get_statistics(results)

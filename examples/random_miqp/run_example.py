@@ -129,7 +129,6 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
 if __name__ == "__main__":
 
     # General settings
-    n_prob = 8                  # Number of problems in problem set
     n_repeat = 10               # Number of repetitions for each problem
     problem_set = 1             # Problem sets 1 (q << n) or 2 (q = n)
     density_level = 0.6         # density level for sparse matrices
@@ -146,6 +145,9 @@ if __name__ == "__main__":
         n_arr = np.array([2, 4, 8, 12, 20, 25, 30, 35])
         m_arr = 5 * n_arr
         p_arr = n_arr
+
+    n_prob = len(n_arr)                  # Number of problems in problem set
+
 
     timings_gurobi = solve(n_arr, m_arr, p_arr, n_repeat,
                            density_level, random_seed, solver='gurobi')

@@ -238,6 +238,8 @@ class Node(object):
         """
         Find lower bound of the relaxed problem corresponding to this node
         """
+
+
         # Update l and u in the solver instance
         self.solver.update(l=self.l, u=self.u)
 
@@ -337,6 +339,7 @@ class Workspace(object):
 
         # Define runtime
         self.run_time = 0
+
 
     def can_continue(self):
         """
@@ -552,6 +555,7 @@ class Workspace(object):
             obj_int = self.data.compute_obj_val(x_int)
             if obj_int < self.upper_glob:
                 self.upper_glob = obj_int
+                self.x = x_int
                 self.prune()
 
         # 5) If we got here, branch current leaf producing two children
@@ -690,8 +694,6 @@ class Workspace(object):
                 #     pickle.dump(problem, f)
                 # import pdb; pdb.set_trace()
 
-            if self.iter_num == 5000:
-                import ipdb; ipdb.set_trace()
             # 3) Bound and Branch
             self.bound_and_branch(leaf)
 
@@ -702,6 +704,7 @@ class Workspace(object):
 
             # Delete leaf object
             del(leaf)
+
 
             # Update iteration number
             self.iter_num += 1
