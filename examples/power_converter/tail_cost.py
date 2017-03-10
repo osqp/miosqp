@@ -13,7 +13,7 @@ class TailCost(object):
         self.gamma = gamma
 
     def load(self, name):
-        tail_mat = sio.loadmat(name)
+        tail_mat = sio.loadmat('examples/power_converter/tail_backups/'+name)
         self.P0 = tail_mat['P0']
         self.q0 = tail_mat['q0']
         self.r0 = tail_mat['r0']

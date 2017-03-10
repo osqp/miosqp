@@ -15,17 +15,17 @@ Ts = 25.0e-06            # Sampling time
 freq = 50.               # Switching frequency
 torque = 1.              # Desired torque
 t0 = 0.0                 # Initial time
-init_periods = 1         # Number of integer period to settle before simulation
-sim_periods = 3          # Numer of simulated periods
+init_periods = 4         # Number of integer period to settle before simulation
+sim_periods = 20         # Numer of simulated periods
 flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 
 
 '''
 ADP Parameters
 '''
-gamma = 0.95          # Forgetting factor
-N_adp = 1              # Horizon length
-delta = 4             # Switching frequency penalty
+gamma = 0.95           # Forgetting factor
+N_adp = 3              # Horizon length
+delta = 5.5            # Switching frequency penalty
 N_tail = 50
 
 # Switching filter parameters
@@ -67,7 +67,7 @@ Run simulations
 model.gen_dynamical_system(fsw_des, delta)
 
 # Generate tail cost
-model.gen_tail_cost(N_tail, gamma, name='tailBackupN1Delta4.00.mat')
+model.gen_tail_cost(N_tail, gamma, name='delta_550.mat')
 
 # Simulate model
-stats = model.simulate_cl(N_adp, flag_steady_trans)
+stats = model.simulate_cl(N_adp, flag_steady_trans, solver='gurobi')

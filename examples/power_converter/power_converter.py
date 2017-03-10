@@ -17,22 +17,26 @@ from quadratic_program import MIQP
 
 
 class Statistics(object):
-    def __init__(self, fsw, thd):
+    def __init__(self, fsw, thd, max_solve_time, min_solve_time, avg_solve_time):
         self.fsw = fsw
         self.thd = thd
+        self.max_solve_time = max_solve_time
+        self.min_solve_time = min_solve_time
+        self.avg_solve_time = avg_solve_time
 
 class SimulationResults(object):
     """
     Simulation results signals
     """
 
-    def __init__(self, X, U, Y_phase, Y_star_phase, T_e, T_e_des):
+    def __init__(self, X, U, Y_phase, Y_star_phase, T_e, T_e_des, solve_times):
         self.X = X
         self.U = U
         self.Y_phase = Y_phase
         self.Y_star_phase = Y_star_phase
         self.T_e = T_e
         self.T_e_des = T_e_des
+        self.solve_times = solve_times
 
 class DynamicalSystem(object):
     """
@@ -405,9 +409,9 @@ class Model(object):
         else:
             self.tail_cost.compute(self.dyn_system, N_tail)
 
-    def compute_mpc_input(self, x0):
+    def compute_mpc_input(self, x0, solver='gurobi'):
         """
-        Compute MPC input at initial state x0
+        Compute MPC input at initial state x0 with specified solver
         """
         qp = self.qp_matrices
 
@@ -421,11 +425,41 @@ class Model(object):
         qp.u[:6 * N] = SA_tildex0
         # qp.l[:6 * N] = -SA_tildex0
 
-        # Solve problem
-        prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
-        res = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+        if solver == 'gurobi':
+            # Solve problem
+            prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
+            res = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+        elif solver == 'miosqp':
+            # Define problem settings
+            miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
+                               'max_iter_bb': 10000,     # maximum number of iterations
+                               'tree_explor_rule': 1,   # tree exploration rule
+                                                        #   [0] depth first
+                                                        #   [1] two-phase: depth first  until first incumbent and then  best bound
+                               'branching_rule': 0,     # branching rule
+                                                        #   [0] max fractional part
+                               'verbose': True,
+                               'print_interval': 1}
 
-        return res.x, res.obj_val, res.cputime
+            osqp_settings = {'eps_abs': 1e-04,
+                             'eps_rel': 1e-04,
+                             'eps_inf': 1e-04,
+                             'rho': 0.005,
+                             'sigma': 0.01,
+                             'alpha': 1.5,
+                             'polish': False,
+                             'max_iter': 2000,
+                             'verbose': False}
+
+            work = miosqp.miosqp_solve(P, q, A, l, u, i_idx,
+                                       miosqp_settings, osqp_settings)
+
+            import ipdb; ipdb.set_trace()
+
+        # Get first input
+        u = res.x[:6]
+
+        return u, res.obj_val, res.cputime
 
     def simulate_one_step(self, x, u):
         """
@@ -499,11 +533,16 @@ class Model(object):
 
         thd = utils.get_thd(Y_phase[:, t_init:].T, t[t_init + 1:], freq)
 
+        # Get solve times statustics
+        max_solve_time = np.max(results.solve_times)
+        min_solve_time = np.min(results.solve_times)
+        avg_solve_time = np.mean(results.solve_times)
 
-        return Statistics(fsw, thd)
+        return Statistics(fsw, thd,
+                          max_solve_time, min_solve_time, avg_solve_time)
 
 
-    def simulate_cl(self, N, steady_trans):
+    def simulate_cl(self, N, steady_trans, solver='gurobi'):
         """
         Perform closed loop simulation
         """
@@ -534,7 +573,7 @@ class Model(object):
 
             # Compute mpc inputs
             U[:, i], obj_vals[i], solve_times[
-                i] = self.compute_mpc_input(X[:, i])
+                i] = self.compute_mpc_input(X[:, i], solver=solver)
 
             # Simulate one step
             X[:, i + 1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
@@ -544,7 +583,8 @@ class Model(object):
         Y_phase, Y_star_phase, T_e, T_e_des = self.compute_signals(X)
 
         # Create simulation results
-        results = SimulationResults(X, U, Y_phase, Y_star_phase, T_e, T_e_des)
+        results = SimulationResults(X, U, Y_phase, Y_star_phase, T_e, T_e_des,
+                                    solve_times)
 
         # Plot results
         utils.plot(results, self.time)

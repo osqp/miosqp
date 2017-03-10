@@ -48,7 +48,7 @@ class MIQP(object):
                 if j <= i:
                     temp = np.hstack((temp, nla.matrix_power(A, i - j) * B))
                 else:
-                    temp = np.hstack((temp, np.zeros(nx, nu)))
+                    temp = np.hstack((temp, np.zeros((nx, nu))))
 
             B_tilde = np.vstack((B_tilde, temp))
 
