@@ -84,7 +84,7 @@ def compute_on_transitions(u, u_prev):
             on_transitions[i * 4 + 3] = 1
         elif u_prev[i] == -1 and u[i] == 0:
             on_transitions[i * 4 + 1] = 1
-    
+
     return on_transitions
 
 
@@ -122,7 +122,7 @@ def get_phase_thd(y, t, freq):
 
 
     # Remove fundamental frequency
-    i_fund = np.argmax(m)
+    i_fund = np.argmax(np.absolute(m))
     I = np.arange(np.maximum(0, i_fund - 1), i_fund + 2)  # remove neighbouring freqs
     m_ripple = m
     m_ripple[I] = 0.

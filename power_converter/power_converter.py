@@ -491,7 +491,6 @@ class Model(object):
         freq_sw = N_sw / (1. / self.params.freq * sim_periods)
         fsw = np.mean(freq_sw)  # Compute average between 12 switches
 
-        import ipdb; ipdb.set_trace()
 
         # Get THD
         t = self.time.t
