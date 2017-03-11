@@ -47,7 +47,7 @@ class Workspace(object):
     x: numpy array
         current best solution
     """
-    def __init__(self, data, settings, qp_settings=None, x0=None):
+    def __init__(self, data, settings, qp_settings=None):
         self.data = data
         self.settings = settings
 
@@ -74,22 +74,32 @@ class Workspace(object):
         # Define leaves at the beginning (only root)
         self.leaves = [root]
 
-        # Add initial solution and objective value
-        if x0 is not None:
-            if self.is_within_bounds(x0, root) and self.is_int_feas(x0, root):
-                self.x = x0
-                self.upper_glob = self.data.compute_obj_val(x0)
-            else:
-                self.upper_glob = np.inf
-                self.x = np.empty(self.data.n)
-        else:
-            self.upper_glob = np.inf
-            self.x = np.empty(self.data.n)
+        # Set initial solution and objective value
+        self.upper_glob = np.inf
+        self.x = np.empty(self.data.n)
 
         # Define timings
         self.setup_time = 0.
         self.solve_time = 0.
         self.run_time = 0.
+
+    def set_x0(self, x0):
+        """
+        Set initial condition
+        """
+
+        # Suppose that algorithm hasn't been run yet. Tree has only one leaf (root)
+        root = self.leaves[0]
+        
+        # Add initial solution and objective value
+        if self.is_within_bounds(x0, root) and self.is_int_feas(x0, root):
+            self.x = x0
+            self.upper_glob = self.data.compute_obj_val(x0)
+        else:
+            print('Invalid initial solution!\n')
+            self.upper_glob = np.inf
+            self.x = np.empty(self.data.n)
+
 
 
     def can_continue(self):
@@ -416,4 +426,3 @@ class Workspace(object):
         if self.status == MI_SOLVED:
             print("Objective bound: %6.3e" % self.upper_glob)
         print("Total number of OSQP iterations: %d" % self.osqp_iter)
-        

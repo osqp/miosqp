@@ -20,6 +20,8 @@ from time import time
 from miosqp.data import Data
 from miosqp.workspace import Workspace
 from miosqp.results import Results
+from miosqp.node import Node
+from miosqp.constants import *
 
 # Dump max_iter_problems to files
 # import pickle
@@ -38,7 +40,7 @@ class MIOSQP(object):
         self.work = None
 
     def setup(self, P, q, A, l, u, i_idx, settings,
-             qp_settings, x0=None):
+             qp_settings):
         """
         Setup MIQP problem using MIOSQP solver
         """
@@ -46,10 +48,10 @@ class MIOSQP(object):
         start = time()
 
         # Create data class instance
-        self.data = Data(P, q, A, l, u, i_idx)
+        data = Data(P, q, A, l, u, i_idx)
 
         # Create Workspace
-        self.work = Workspace(self.data, settings, qp_settings, x0)
+        self.work = Workspace(data, settings, qp_settings)
 
         stop = time()
 
@@ -171,5 +173,37 @@ class MIOSQP(object):
         """
         Update problem vectors without running setup again
         """
+        work = self.work
 
-        print("Hello!")
+        # Update data
+        work.data.update_vectors(q, l, u)
+
+        # Update cost in OSQP solver
+        work.solver.update(q=q)
+
+        # Create root node
+        root = Node(work.data, work.data.l, work.data.u, work.solver)
+        work.leaves = [root]
+
+        # Reset statistics
+        work.iter_num = 1
+        work.osqp_solve_time = 0.
+        work.osqp_iter = 0
+        work.lower_glob = -np.inf
+        work.status = MI_UNSOLVED
+
+        # Timings (setup_time is the same)
+        work.solve_time = 0.
+        work.run_time = 0.
+
+        # Reset solution
+        work.x = np.empty(work.data.n)
+        work.upper_glob = np.inf
+
+
+    def set_x0(self, x0):
+        """
+        Set initial solution x0
+        """
+
+        self.work.set_x0(x0)

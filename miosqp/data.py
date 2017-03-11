@@ -88,3 +88,27 @@ class Data(object):
         Compute objective value at x
         """
         return .5 * np.dot(x, self.P.dot(x)) + np.dot(self.q, x)
+
+    def update_vectors(self, q=None, l=None, u=None):
+        """
+        Update prblem vectors
+        """
+
+        # Update cost
+        if q is not None:
+            if len(q) != self.n:
+                raise ValueError('Wrong q dimension!')
+            self.q = q
+
+        # Update lower bound
+        if l is not None:
+            if len(l) != self.m:
+                raise ValueError('Wrong l dimension!')
+            self.l[:self.m] = l
+
+
+        # Update upper bound
+        if u is not None:
+            if len(u) != self.m:
+                raise ValueError('Wrong u dimension!')
+            self.u[:self.m] = u

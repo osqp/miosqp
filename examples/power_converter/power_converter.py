@@ -377,6 +377,7 @@ class Model(object):
         self.init_conditions = None
         self.time = None
         self.qp_matrices = None
+        self.solver = None
 
     def set_params(self, Ts, freq, k1, k2, torque):
         self.params = Params(Ts, freq, k1, k2, torque)
@@ -419,6 +420,7 @@ class Model(object):
 
         N = qp.N
 
+
         # Update objective
         q = 2. * (qp.q_x.dot(x0) + qp.q_u)
 
@@ -436,33 +438,48 @@ class Model(object):
             solve_time = res_gurobi.cputime
 
         elif solver == 'miosqp':
-            # Define problem settings
-            miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
-                               'max_iter_bb': 2000,     # maximum number of iterations
-                               'tree_explor_rule': 1,   # tree exploration rule
-                                                        #   [0] depth first
-                                                        #   [1] two-phase: depth first  until first incumbent and then  best bound
-                               'branching_rule': 0,     # branching rule
-                                                        #   [0] max fractional part
-                               'verbose': False,
-                               'print_interval': 1}
 
-            osqp_settings = {'eps_abs': 1e-04,
-                             'eps_rel': 1e-04,
-                             'eps_inf': 1e-04,
-                             'rho': 0.0001,
-                             'sigma': 0.1,
-                             'alpha': 1.5,
-                             'polish': False,
-                             'max_iter': 2000,
-                             'verbose': False}
-            model = miosqp.MIOSQP()
-            model.setup(qp.P, q, qp.A, qp.l,
-                        qp.u, qp.i_idx,
-                        miosqp_settings,
-                        osqp_settings,
-                        u_prev)
-            res_miosqp = model.solve()
+            if self.solver == None:
+                # Define problem settings
+                miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
+                                   'max_iter_bb': 2000,     # maximum number of iterations
+                                   'tree_explor_rule': 1,   # tree exploration rule
+                                                            #   [0] depth first
+                                                            #   [1] two-phase: depth first  until first incumbent and then  best bound
+                                   'branching_rule': 0,     # branching rule
+                                                            #   [0] max fractional part
+                                   'verbose': False,
+                                   'print_interval': 1}
+
+                osqp_settings = {'eps_abs': 1e-04,
+                                 'eps_rel': 1e-04,
+                                 'eps_inf': 1e-04,
+                                 'rho': 0.0001,
+                                 'sigma': 0.1,
+                                 'alpha': 1.5,
+                                 'polish': False,
+                                 'max_iter': 2000,
+                                 'verbose': False}
+                self.solver = miosqp.MIOSQP()
+                self.solver.setup(qp.P, q, qp.A, qp.l,
+                                   qp.u, qp.i_idx,
+                                   miosqp_settings,
+                                   osqp_settings)
+            else:
+                self.solver.update_vectors(q, qp.l, qp.u)
+
+            self.solver.set_x0(u_prev)
+            res_miosqp = self.solver.solve()
+
+
+            # DEBUG Check if gurobi gives same solution
+            # prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
+            # res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, x0=u_prev)
+            # print("Norm of difference of solution = %.4e" % \
+            #       np.linalg.norm(res_miosqp.x - res_gurobi.x))
+            # import ipdb; ipdb.set_trace()
+
+
 
             if res_miosqp.status != miosqp.MI_SOLVED:
                 import ipdb; ipdb.set_trace()
@@ -566,11 +583,15 @@ class Model(object):
         print("Simulating closed loop N = %i with solver %s" % \
               (N, solver))
 
+        # Reset solver
+        self.solver = None
+
         # Rename some variables for notation ease
         nx = self.dyn_system.A.shape[0]
         nu = self.dyn_system.B.shape[1]
         ny = self.dyn_system.C.shape[0]
         T_final = self.time.T_final
+
 
         # Compute QP matrices
         self.qp_matrices = MIQP(self.dyn_system, N, self.tail_cost)
