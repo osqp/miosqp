@@ -29,8 +29,6 @@ from miosqp.results import Results
 # Plotting
 # import matplotlib.pylab as plt
 
-
-
 class MIOSQP(object):
     """
     MIOSQP Solver class
@@ -60,16 +58,94 @@ class MIOSQP(object):
 
     def solve(self):
         """
-        Solve MIQP problem using MIOSQP solver
+        Solve MIQP problem with branch-and-bound algorithm
         """
 
         # Start timer
         start = time()
 
-        # Solve problem
-        self.work.solve()
 
-        # Stop
+        # Store self.work in work so that name is shorter
+        work = self.work
+
+        # Store bounds behavior for plotting
+        # lowers = []
+        # uppers = []
+
+
+        if work.settings['verbose']:
+            # Print header
+            work.print_headline()
+
+        # Loop tree until there are active leaves
+        while work.can_continue():
+
+            # 1) Choose leaf
+            leaf = work.choose_leaf(work.settings['tree_explor_rule'])
+
+            # 2) Solve relaxed problem in leaf
+            leaf.solve()
+
+            # Check if maximum number of iterations reached
+            # if (leaf.status == work.solver.constant('OSQP_MAX_ITER_REACHED')):
+                # print("ERROR: Max Iter Reached!")
+                # # Dump file to 'max_iter_examples'folder
+                # problem = {'P': work.data.P,
+                #            'q': work.data.q,
+                #            'A': work.data.A,
+                #            'l': leaf.l,
+                #            'u': leaf.u,
+                #            'i_idx': work.data.i_idx,
+                #            'settings': work.qp_settings}
+                # # Get new filename
+                # list_dir = listdir('./max_iter_examples')
+                # last_name = int(splitext(list_dir[-1])[0])
+                # with open('max_iter_examples/%s.pickle' % str(last_name + 1), 'wb') as f:
+                #     pickle.dump(problem, f)
+                # import pdb; pdb.set_trace()
+
+            # 3) Bound and Branch
+            work.bound_and_branch(leaf)
+
+            if (work.iter_num % (work.settings['print_interval']) == 0) and \
+                work.settings['verbose']:
+                # Print progress
+                work.print_progress(leaf)
+
+            # Delete leaf object
+            del(leaf)
+
+
+            # Update iteration number
+            work.iter_num += 1
+
+            # Store bounds for plotting
+            # lowers.append(work.lower_glob)
+            # uppers.append(work.upper_glob)
+
+        # Get final status
+        work.get_return_status()
+
+        # Get exact mixed-integer solution
+        work.get_return_solution()
+
+        if work.settings['verbose']:
+            # Print footer
+            work.print_footer()
+
+        # Print bounds
+        # plt.figure(1)
+        # plt.cla()
+        # plt.plot(uppers)
+        # plt.plot(lowers)
+        # plt.legend(('upper bound', 'lower bound'))
+        # plt.xlabel('iteration')
+        # plt.ylabel('bounds')
+        # plt.title('Global lower and upper bounds')
+        # plt.grid()
+        # plt.show(block=False)
+
+        # Stop timer
         stop = time()
 
         self.work.solve_time = stop - start
