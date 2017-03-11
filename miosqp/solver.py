@@ -152,7 +152,7 @@ class MIOSQP(object):
 
         self.work.solve_time = stop - start
 
-        if self.work.first_run == 1:
+        if self.work.first_run:
             self.work.first_run = 0
             self.work.run_time = self.work.setup_time + \
                 self.work.solve_time
@@ -178,8 +178,9 @@ class MIOSQP(object):
         # Update data
         work.data.update_vectors(q, l, u)
 
-        # Update cost in OSQP solver
-        work.solver.update(q=q)
+        if q is not None:
+            # Update cost in OSQP solver
+            work.solver.update(q=q)
 
         # Create root node
         root = Node(work.data, work.data.l, work.data.u, work.solver)
