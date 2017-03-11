@@ -14,7 +14,6 @@ import pandas as pd
 import mathprogbasepy as mpbpy
 import miosqp
 
-
  # Import progress bar
 from tqdm import tqdm
 
@@ -82,7 +81,7 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
             if solver == 'gurobi':
                 # Solve with gurobi
                 prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-                res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, Presolve=0)
+                res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
                 if res_gurobi.status != 'optimal':
                     import ipdb; ipdb.set_trace()
                 solve_time_temp[j] = 1e3 * res_gurobi.cputime
@@ -109,13 +108,17 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                                  'max_iter': 2000,
                                  'verbose': False}
 
-                work = miosqp.miosqp_solve(P, q, A, l, u, i_idx,
-                                           miosqp_settings, osqp_settings)
-                if work.status != miosqp.MI_SOLVED:
+                model = miosqp.MIOSQP()
+                model.setup(P, q, A, l, u, i_idx,
+                             miosqp_settings,
+                             osqp_settings)
+                res_miosqp = model.solve()
+
+                if res_miosqp.status != miosqp.MI_SOLVED:
                     import ipdb; ipdb.set_trace()
 
-                osqp_solve_time_temp[j] = 100 * (work.osqp_solve_time / work.run_time)
-                solve_time_temp[j] = 1e3 * work.run_time
+                osqp_solve_time_temp[j] = 100 * (res_miosqp.osqp_solve_time / res_miosqp.run_time)
+                solve_time_temp[j] = 1e3 * res_miosqp.run_time
 
 
         # Get time statistics
@@ -134,14 +137,14 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
     df_dict = { 'n' : n_vec,
                 'm' : m_vec,
                 'p' : p_vec,
-                't_min [ms]' : min_solve_time,
-                't_max [ms]' : max_solve_time,
-                't_avg [ms]' : avg_solve_time }
+                't_min[ms]' : min_solve_time,
+                't_max[ms]' : max_solve_time,
+                't_avg[ms]' : avg_solve_time }
 
     if solver == 'miosqp':
-        df_dict.update({'t_osqp_min [%]' : min_osqp_solve_time,
-                        't_osqp_max [%]' : max_osqp_solve_time,
-                        't_osqp_avg [%]' : avg_osqp_solve_time })
+        df_dict.update({'t_osqp_min[%]' : min_osqp_solve_time,
+                        't_osqp_max[%]' : max_osqp_solve_time,
+                        't_osqp_avg[%]' : avg_osqp_solve_time })
 
     timings = pd.DataFrame(df_dict)
 
@@ -154,7 +157,7 @@ if __name__ == "__main__":
 
     # General settings
     n_repeat = 10               # Number of repetitions for each problem
-    problem_set = 2             # Problem sets 1 (q << n) or 2 (q = n)
+    problem_set = 1             # Problem sets 1 (q << n) or 2 (q = n)
     density_level = 0.6         # density level for sparse matrices
     random_seed = 0              # set random seed to make results reproducible
 

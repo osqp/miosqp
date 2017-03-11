@@ -65,8 +65,6 @@ Times_adp = []
 Run simulations
 '''
 
-#TODO: Add for loop for different N_adp, fsw_des, delta
-
 # Generate extended adp model
 model.gen_dynamical_system(fsw_des, delta)
 
@@ -99,12 +97,12 @@ for i in range(len(N_adp)):
 
 
 # Create pandas dataframe
-timings = pd.DataFrame({ 'grb_avg' : gurobi_avg_time,
-                         'grb_min' : gurobi_min_time,
-                         'grb_max' : gurobi_max_time,
-                         'miosqp_avg' : miosqp_avg_time,
-                         'miosqp_min' : miosqp_min_time,
-                         'miosqp_max' : miosqp_max_time},
+timings = pd.DataFrame({ 'grb_avg' : 1e03 * gurobi_avg_time,
+                         'grb_min' : 1e03 * gurobi_min_time,
+                         'grb_max' : 1e03 * gurobi_max_time,
+                         'miosqp_avg' : 1e03 * miosqp_avg_time,
+                         'miosqp_min' : 1e03 * miosqp_min_time,
+                         'miosqp_max' : 1e03 * miosqp_max_time},
                          index=N_adp)
 
 print("Results")

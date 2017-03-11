@@ -1,0 +1,90 @@
+import scipy.sparse as spa
+import numpy as np
+
+def add_bounds(i_idx, l_new, u_new, A, l, u):
+    """
+    Add new bounds on the variables
+
+        l_new <= x_i <= u_new for i in i_idx
+
+    It is done by adding rows to the contraints
+
+        l <= A x <= u
+    """
+
+    n = A.shape[1]
+
+    # Enforce integer variables to be binary => {0, 1}
+    I_int = spa.identity(n).tocsc()
+    I_int = I_int[i_idx, :]
+    l_int = np.empty((n,))
+    l_int.fill(l_new)
+    l_int = l_int[i_idx]
+    u_int = np.empty((n,))
+    u_int.fill(u_new)
+    u_int = u_int[i_idx]
+    A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+    l = np.append(l, l_int)         # Extend problem constraints
+    u = np.append(u, u_int)         # Extend problem constraints
+
+    return A, l, u
+
+
+class Data(object):
+    """
+    Data for the relaxed qp problem in the form
+
+        min    1/2 x' P x + q' x
+        s.t.   l <= A x <= u
+
+        where l = [l_orig]   and u = [u_orig] \\in R^{m + len(i_idx)}
+                  [ -inf ]           [ +inf ]
+        and A = [A_orig] \\in R^{m + len(i_idx) \\times n}
+                [  I   ]
+        are the newly introduced constraints to deal with integer variables
+
+    Attributes
+    ----------
+    n: int
+        number of variables
+    m: int
+        number of constraints in original MIQP problem
+    P: scipy sparse matrix
+        cost function matrix
+    q: numpy array
+        linear part of the cost
+    A: scipy sparse matrix
+        extended constraints matrix
+    l: numpy array
+        extended array of lower bounds
+    u: numpy array
+        extended array of upper bounds
+
+    Methods
+    -------
+    compute_obj_val
+        compute objective value
+    """
+
+    def __init__(self, P, q, A, l, u, i_idx):
+        # MIQP problem dimensions
+        self.n = A.shape[1]
+        self.m = A.shape[0]
+        self.n_int = len(i_idx)   # Number of integer variables
+
+        # Extend problem with new constraints to accomodate integral constraints
+        self.A, self.l, self.u = add_bounds(i_idx, -np.inf, np.inf, A, l, u)
+
+
+        # Define problem cost function
+        self.P = P.tocsc()
+        self.q = q
+
+        # Define index of integer variables
+        self.i_idx = i_idx
+
+    def compute_obj_val(self, x):
+        """
+        Compute objective value at x
+        """
+        return .5 * np.dot(x, self.P.dot(x)) + np.dot(self.q, x)

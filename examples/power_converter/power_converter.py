@@ -411,7 +411,7 @@ class Model(object):
         else:
             self.tail_cost.compute(self.dyn_system, N_tail)
 
-    def compute_mpc_input(self, x0, solver='gurobi'):
+    def compute_mpc_input(self, x0, u_prev, solver='gurobi'):
         """
         Compute MPC input at initial state x0 with specified solver
         """
@@ -430,15 +430,15 @@ class Model(object):
         if solver == 'gurobi':
             # Solve problem
             prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
-            res = prob.solve(solver=mpbpy.GUROBI, verbose=False, Presolve=0)
-            u = res.x
-            obj_val = res.obj_val
-            solve_time = res.cputime
+            res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, x0=u_prev)
+            u = res_gurobi.x
+            obj_val = res_gurobi.obj_val
+            solve_time = res_gurobi.cputime
 
         elif solver == 'miosqp':
             # Define problem settings
             miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
-                               'max_iter_bb': 1000,     # maximum number of iterations
+                               'max_iter_bb': 2000,     # maximum number of iterations
                                'tree_explor_rule': 1,   # tree exploration rule
                                                         #   [0] depth first
                                                         #   [1] two-phase: depth first  until first incumbent and then  best bound
@@ -456,21 +456,26 @@ class Model(object):
                              'polish': False,
                              'max_iter': 2000,
                              'verbose': False}
+            model = miosqp.MIOSQP()
+            model.setup(qp.P, q, qp.A, qp.l,
+                        qp.u, qp.i_idx,
+                        miosqp_settings,
+                        osqp_settings,
+                        u_prev)
+            res_miosqp = model.solve()
 
-
-            work = miosqp.miosqp_solve(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx,
-                                       miosqp_settings, osqp_settings)
-            if work.status != miosqp.MI_SOLVED:
+            if res_miosqp.status != miosqp.MI_SOLVED:
                 import ipdb; ipdb.set_trace()
-            u = work.x
-            obj_val = work.upper_glob
-            solve_time = work.run_time
+            u = res_miosqp.x
+            obj_val = res_miosqp.upper_glob
+            solve_time = res_miosqp.run_time
+
 
         # Get first input
-        u = u[:6]
+        u0 = u[:6]
 
 
-        return u, obj_val, solve_time
+        return u0, obj_val, solve_time, u
 
     def simulate_one_step(self, x, u):
         """
@@ -580,12 +585,16 @@ class Model(object):
         # Set initial statte
         X[:, 0] = self.init_conditions.x0
 
+        # Temporary previous MIQP solution
+        u_prev = np.zeros(nu * N)
+
         # Run loop
         for i in tqdm(range(T_final)):
 
+
             # Compute mpc inputs
-            U[:, i], obj_vals[i], solve_times[
-                i] = self.compute_mpc_input(X[:, i], solver=solver)
+            U[:, i], obj_vals[i], solve_times[i], u_prev = \
+            self.compute_mpc_input(X[:, i], u_prev, solver=solver)
 
             # Simulate one step
             X[:, i + 1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])

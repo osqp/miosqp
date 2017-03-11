@@ -1,278 +1,13 @@
-"""
-Solve Mixed-Integer QPs using Branch and Bound and OSQP Solver
-
-
-Written by Bartolomeo Stellato, February 2017, University of Oxford
-"""
-
-from __future__ import print_function, division
-from builtins import str
-from builtins import object
-import osqp  # Import OSQP Solver
-# import osqppurepy as osqp # Import OSQP Solver implementation in Pure Python
 import numpy as np
-# import numpy.linalg as la
-import scipy.sparse as spa
-from time import time
+
+# Import osqp solver
+import osqp
+
+# Miosqp files
+from miosqp.node import Node
+from miosqp.constants import *
 
 
-# Dump max_iter_problems to files
-import pickle
-from os import listdir
-from os.path import splitext
-
-# Plotting
-import matplotlib.pylab as plt
-
-
-
-# Solver statuses
-MI_UNSOLVED = 'Unolved'
-MI_SOLVED = 'Solved'
-MI_INFEASIBLE = 'Infeasible'
-MI_UNBOUNDED = 'Unbounded'
-MI_MAX_ITER_FEASIBLE = 'Max-iter feasible'
-MI_MAX_ITER_UNSOLVED = 'Max-iter unsolved'
-
-
-def add_bounds(i_idx, l_new, u_new, A, l, u):
-    """
-    Add new bounds on the variables
-
-        l_new <= x_i <= u_new for i in i_idx
-
-    It is done by adding rows to the contraints
-
-        l <= A x <= u
-    """
-
-    n = A.shape[1]
-
-    # Enforce integer variables to be binary => {0, 1}
-    I_int = spa.identity(n).tocsc()
-    I_int = I_int[i_idx, :]
-    l_int = np.empty((n,))
-    l_int.fill(l_new)
-    l_int = l_int[i_idx]
-    u_int = np.empty((n,))
-    u_int.fill(u_new)
-    u_int = u_int[i_idx]
-    A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
-    l = np.append(l, l_int)         # Extend problem constraints
-    u = np.append(u, u_int)         # Extend problem constraints
-
-    return A, l, u
-
-
-
-
-class Data(object):
-    """
-    Data for the relaxed qp problem in the form
-
-        min    1/2 x' P x + q' x
-        s.t.   l <= A x <= u
-
-        where l = [l_orig]   and u = [u_orig] \\in R^{m + len(i_idx)}
-                  [ -inf ]           [ +inf ]
-        and A = [A_orig] \\in R^{m + len(i_idx) \\times n}
-                [  I   ]
-        are the newly introduced constraints to deal with integer variables
-
-    Attributes
-    ----------
-    n: int
-        number of variables
-    m: int
-        number of constraints in original MIQP problem
-    P: scipy sparse matrix
-        cost function matrix
-    q: numpy array
-        linear part of the cost
-    A: scipy sparse matrix
-        extended constraints matrix
-    l: numpy array
-        extended array of lower bounds
-    u: numpy array
-        extended array of upper bounds
-
-    Methods
-    -------
-    compute_obj_val
-        compute objective value
-    """
-
-    def __init__(self, P, q, A, l, u, i_idx):
-        # MIQP problem dimensions
-        self.n = A.shape[1]
-        self.m = A.shape[0]
-        self.n_int = len(i_idx)   # Number of integer variables
-
-        #
-        # Extend problem with new constraints to accomodate integral constraints
-        #
-        self.A, self.l, self.u = add_bounds(i_idx, -np.inf, np.inf, A, l, u)
-
-        #
-        # I_int = spa.identity(self.n).tocsc()
-        # I_int = I_int[i_idx, :]     # Extend constraints matrix A with only the rows of
-        #                             # the identity relative to the integer variables
-        #
-        # # Extend the bounds only for the variables which are integer
-        # l_int = np.empty((self.n,))
-        # l_int.fill(-np.inf)
-        # l_int = l_int[i_idx]
-        # u_int = np.empty((self.n,))
-        # u_int.fill(np.inf)
-        # u_int = u_int[i_idx]
-        #
-        # self.A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
-        # self.l = np.append(l, l_int)         # Extend problem constraints
-        # self.u = np.append(u, u_int)         # Extend problem constraints
-
-        #
-        # Define problem cost function
-        #
-        self.P = P.tocsc()
-        self.q = q
-
-        # Define index of integer variables
-        self.i_idx = i_idx
-
-    def compute_obj_val(self, x):
-        """
-        Compute objective value at x
-        """
-        return .5 * np.dot(x, self.P.dot(x)) + np.dot(self.q, x)
-
-class Node(object):
-    """
-    Branch-and-bound node class
-
-    Attributes
-    ----------
-    lower: double
-        node's lower bound
-    data: Data structure
-        problem data
-    depth: int
-        depth in the tree
-    ©: int
-        number of fractional elements which are supposed to be integer
-    frac_idx: array of int
-        index within the i_idx vector of the elements of x that are still fractional
-    l: numpy array
-        vector of lower bounds in relaxed QP problem
-    u: numpy array
-        vector of upper bounds in relaxed QP problem
-    x: numpy array
-        node's relaxed solution. At the beginning it is the warm-starting value x0
-    y: numpy array
-        node's relaxed solution. At the beginning it is the warm-starting value y0
-    status: int
-        qp solver return status
-    num_iter: int
-        number of OSQP ADMM iterations
-    osqp_solve_time: int
-        time to solve QP problem
-    solver: solver
-        QP solver object instance
-    nextvar_idx: int
-        index of next variable within solution x
-    constr_idx: int
-        index of constraint to change for branching on next variable
-    """
-
-    def __init__(self, data, l, u, solver, depth=0, lower=None,
-                 x0=None, y0=None):
-        """
-        Initialize node class
-        """
-
-        # Assign data structure
-        self.data = data
-
-        # Set l and u for relaxed QP problem
-        self.l = l
-        self.u = u
-
-        # Assign solver
-        self.solver = solver
-
-        # Set depth
-        self.depth = depth
-
-        # Set bound
-        if lower==None:
-            self.lower = -np.inf
-        else:
-            self.lower = lower
-
-        # Frac_idx, intin
-        self.frac_idx = None
-        self.intinf = None
-
-
-        # Number of integer infeasible variables
-        self.intinf = None
-
-        # Number of OSQP ADMM iterations
-        self.num_iter = 0
-
-        # Time to solve the QP
-        self.osqp_solve_time = 0
-
-        # Warm-start variables which are also the relaxed solutions
-        if x0 is None:
-            x0 = np.zeros(self.data.n)
-        if y0 is None:
-            y0 = np.zeros(self.data.m + self.data.n_int)
-        self.x = x0
-        self.y = y0
-
-        # Set QP solver return status
-        self.status = self.solver.constant('OSQP_UNSOLVED')
-
-        # Add next variable elements
-        self.nextvar_idx = None   # Index of next variable within solution x
-        self.constr_idx = None    # Index of constraint to change for branching
-                                  #     on next variable
-
-
-    def solve(self):
-        """
-        Find lower bound of the relaxed problem corresponding to this node
-        """
-
-
-        # Update l and u in the solver instance
-        self.solver.update(l=self.l, u=self.u)
-
-        # Warm start solver with currently stored solution
-        self.solver.warm_start(x=self.x, y=self.y)
-
-        # Solve current problem
-        results = self.solver.solve()
-
-        # Store solver status
-        self.status = results.info.status_val
-
-        # DEBUG: Problems that hit max_iter are infeasible
-        # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
-            # self.status = self.solver.constant('OSQP_INFEASIBLE')
-
-        # Store number of iterations
-        self.num_iter = results.info.iter
-
-        # Store solve time
-        self.osqp_solve_time = results.info.run_time
-
-        # Store solver solution
-        self.x = results.x
-        self.y = results.y
-
-        # Get lower bound (objective value of relaxed problem)
-        self.lower = results.info.obj_val
 
 class Workspace(object):
     """
@@ -301,6 +36,8 @@ class Workspace(object):
         total time required to solve OSQP problems
     run_time: double
         runtime of the algorithm
+    first_run: int
+        has the problem been solved already?
     upper_glob: double
         global upper bound
     lower_glob: double
@@ -323,6 +60,7 @@ class Workspace(object):
                           self.data.l, self.data.u, **qp_settings)
 
         # Define other internal variables
+        self.first_run = 1
         self.iter_num = 1
         self.osqp_solve_time = 0.
         self.osqp_iter = 0
@@ -348,8 +86,10 @@ class Workspace(object):
             self.upper_glob = np.inf
             self.x = np.empty(self.data.n)
 
-        # Define runtime
-        self.run_time = 0
+        # Define timings
+        self.setup_time = 0.
+        self.solve_time = 0.
+        self.run_time = 0.
 
 
     def can_continue(self):
@@ -538,7 +278,6 @@ class Workspace(object):
         # 1) If infeasible or unbounded, then return (prune)
         if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
             leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
-            # ipdb.set_trace()
             return
 
         # 2) If lower bound is greater than upper bound, then return (prune)
@@ -616,6 +355,17 @@ class Workspace(object):
                     self.status = MI_MAX_ITER_UNSOLVED
                 else:                     # -inf
                     self.status = MI_UNBOUNDED
+
+    def get_return_solution(self):
+        """
+        Get exact mixed-integer solution
+        """
+
+        if self.status == MI_SOLVED or \
+            self.status == MI_MAX_ITER_FEASIBLE:
+            # Part of solution that is supposed to be integer
+            self.x[self.data.i_idx] = \
+                np.round(self.x[self.data.i_idx])
 
 
     def print_headline(self):
@@ -730,6 +480,9 @@ class Workspace(object):
         # Get final status
         self.get_return_status()
 
+        # Get exact mixed-integer solution
+        self.get_return_solution()
+
         if self.settings['verbose']:
             # Print footer
             self.print_footer()
@@ -749,29 +502,3 @@ class Workspace(object):
         # ipdb.set_trace()
 
         return
-
-
-def miosqp_solve(P, q, A, l, u, i_idx, settings, qp_settings, x0=None):
-    """
-    Solve MIQP problem using MIOSQP solver
-    """
-
-    # Start timer
-    start = time()
-
-
-    # Create data class instance
-    data = Data(P, q, A, l, u, i_idx)
-
-    # Create Workspace
-    work = Workspace(data, settings, qp_settings, x0)
-
-    # Solve problem
-    work.solve()
-
-    # Stop
-    stop = time()
-    work.run_time = stop - start
-    if settings['verbose']:
-        print("Elapsed time: %.4es" % work.run_time)
-    return work
