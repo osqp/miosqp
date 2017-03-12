@@ -90,7 +90,7 @@ class Workspace(object):
 
         # Suppose that algorithm hasn't been run yet. Tree has only one leaf (root)
         root = self.leaves[0]
-        
+
         # Add initial solution and objective value
         if self.is_within_bounds(x0, root) and self.is_int_feas(x0, root):
             self.x = x0
@@ -155,14 +155,9 @@ class Workspace(object):
         l_left = np.copy(leaf.l)
         u_left = np.copy(leaf.u)
 
-        # Add constraint if it make the feasible region smaller (min())
         # x <= floor(x_relaxed)
-        u_left[leaf.constr_idx] = min(u_left[leaf.constr_idx],
-                                      np.floor(leaf.x[leaf.nextvar_idx]))
-
-        # Constrain it with lower bound
-        u_left[leaf.constr_idx] = max(u_left[leaf.constr_idx],
-                                      l_left[leaf.constr_idx])
+        u_left[leaf.constr_idx] = \
+            np.floor(leaf.x[leaf.nextvar_idx])
 
         # Create new leaf
         new_leaf = Node(self.data, l_left, u_left, self.solver,
@@ -180,14 +175,9 @@ class Workspace(object):
         l_right = np.copy(leaf.l)
         u_right = np.copy(leaf.u)
 
-        # Add constraint if it make the feasible region smaller (max())
         # ceil(x_relaxed) <= x
-        l_right[leaf.constr_idx] = max(l_right[leaf.constr_idx],
-                                       np.ceil(leaf.x[leaf.nextvar_idx]))
-
-        # Constrain it with upper bound
-        l_right[leaf.constr_idx] = min(l_right[leaf.constr_idx],
-                                       u_right[leaf.constr_idx])
+        l_right[leaf.constr_idx] = \
+            np.ceil(leaf.x[leaf.nextvar_idx])
 
         # Create new leaf
         new_leaf = Node(self.data, l_right, u_right, self.solver,

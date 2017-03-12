@@ -28,7 +28,7 @@ flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 ADP Parameters
 '''
 gamma = 0.95                # Forgetting factor
-N_adp = np.arange(1, 7)     # Horizon length
+N_adp = np.arange(2, 7)     # Horizon length
 delta = 5.5                 # Switching frequency penalty
 N_tail = 50
 
@@ -83,11 +83,11 @@ miosqp_max_time = np.zeros(len(N_adp))
 
 for i in range(len(N_adp)):
 
-    stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, solver='gurobi')
-
-    gurobi_avg_time[i] = stats_gurobi.avg_solve_time
-    gurobi_min_time[i] = stats_gurobi.min_solve_time
-    gurobi_max_time[i] = stats_gurobi.max_solve_time
+    # stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, solver='gurobi')
+    #
+    # gurobi_avg_time[i] = stats_gurobi.avg_solve_time
+    # gurobi_min_time[i] = stats_gurobi.min_solve_time
+    # gurobi_max_time[i] = stats_gurobi.max_solve_time
 
     stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, solver='miosqp')
 

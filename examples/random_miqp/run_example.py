@@ -114,6 +114,12 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                              osqp_settings)
                 res_miosqp = model.solve()
 
+                # DEBUG
+                # prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
+                # res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+                # if np.linalg.norm(res_gurobi.x - res_miosqp.x) > 1e-02:
+                #     import ipdb; ipdb.set_trace()
+
                 if res_miosqp.status != miosqp.MI_SOLVED:
                     import ipdb; ipdb.set_trace()
 

@@ -473,11 +473,16 @@ class Model(object):
 
 
             # DEBUG Check if gurobi gives same solution
+            # N.B. They do not match when the norm of the
+            #      difference of the objective functions
+            #      is below the tolerance
+            #
             # prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
             # res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, x0=u_prev)
-            # print("Norm of difference of solution = %.4e" % \
-            #       np.linalg.norm(res_miosqp.x - res_gurobi.x))
-            # import ipdb; ipdb.set_trace()
+            # if np.linalg.norm(res_miosqp.x - res_gurobi.x)> 1e-02:
+            #     print("Norm of difference of solution = %.4e" % \
+            #           np.linalg.norm(res_miosqp.x - res_gurobi.x))
+            #     import ipdb; ipdb.set_trace()
 
 
 
