@@ -14,7 +14,6 @@ def add_bounds(i_idx, l_new, u_new, A, l, u):
 
     n = A.shape[1]
 
-    # Enforce integer variables to be binary => {0, 1}
     I_int = spa.identity(n).tocsc()
     I_int = I_int[i_idx, :]
     l_int = np.empty((n,))
