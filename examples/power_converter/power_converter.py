@@ -19,12 +19,14 @@ from tail_cost import TailCost
 from quadratic_program import MIQP
 
 class Statistics(object):
-    def __init__(self, fsw, thd, max_solve_time, min_solve_time, avg_solve_time):
+    def __init__(self, fsw, thd, max_solve_time, min_solve_time,
+                 avg_solve_time, std_solve_time):
         self.fsw = fsw
         self.thd = thd
         self.max_solve_time = max_solve_time
         self.min_solve_time = min_solve_time
         self.avg_solve_time = avg_solve_time
+        self.std_solve_time = std_solve_time
 
 class SimulationResults(object):
     """
@@ -575,9 +577,11 @@ class Model(object):
         max_solve_time = np.max(results.solve_times)
         min_solve_time = np.min(results.solve_times)
         avg_solve_time = np.mean(results.solve_times)
+        std_solve_time = np.std(results.solve_times)
 
         return Statistics(fsw, thd,
-                          max_solve_time, min_solve_time, avg_solve_time)
+                          max_solve_time, min_solve_time,
+                          avg_solve_time, std_solve_time)
 
 
     def simulate_cl(self, N, steady_trans, solver='gurobi', plot=False):
@@ -625,6 +629,8 @@ class Model(object):
             # Simulate one step
             X[:, i + 1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
 
+            # Shift u_prev
+            u_prev = np.append(u_prev[nu:], u_prev[-nu:])
 
         # Compute additional signals for plotting
         Y_phase, Y_star_phase, T_e, T_e_des = self.compute_signals(X)

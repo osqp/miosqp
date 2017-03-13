@@ -92,7 +92,7 @@ class Workspace(object):
         root = self.leaves[0]
 
         # Add initial solution and objective value
-        if self.is_within_bounds(x0, root) and self.is_int_feas(x0, root):
+        if self.satisfies_lin_constraints(x0, root.l, root.u) and self.is_int_feas(x0, root):
             self.x = x0
             self.upper_glob = self.data.compute_obj_val(x0)
         else:
@@ -214,14 +214,14 @@ class Workspace(object):
         # Get next variable idx
         leaf.nextvar_idx = self.data.i_idx[nextvar]
 
-    def is_within_bounds(self, x, leaf):
+    def satisfies_lin_constraints(self, x, l, u):
         """
-        Check if solution x is within bounds of leaf
+        Check if solution x is within linear constraints
         """
         # Check if it satisfies current l and u bounds
         z = self.data.A.dot(x)
-        if any(z < leaf.l - self.qp_settings['eps_abs']) | \
-            any(z > leaf.u + self.qp_settings['eps_abs']):
+        if any(z < l - self.qp_settings['eps_abs']) | \
+            any(z > u + self.qp_settings['eps_abs']):
             return False
 
         # If we got here, it is integer feasible
@@ -298,13 +298,14 @@ class Workspace(object):
             return
 
         # 4) If fractional, get integer solution using heuristic.
-        #    If integer solution is within bounds (feasible), then:
+        #    If integer solution satisfies linear constraints, then:
         #    - compute objective value at integer x
         #    If objective value improves the upper bound
         #       - update best upper bound
         #       - prune all leaves with lower bound greater than current one
         x_int = self.get_integer_solution(leaf.x)
-        if self.is_within_bounds(x_int, leaf):
+        if self.satisfies_lin_constraints(x_int,
+                                          self.data.l, self.data.u):
             obj_int = self.data.compute_obj_val(x_int)
             if obj_int < self.upper_glob:
                 self.upper_glob = obj_int

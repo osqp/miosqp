@@ -11,6 +11,11 @@ import numpy.linalg as la
 import pandas as pd
 
 
+
+# Import plotting
+import matplotlib.pylab as plt
+
+
 import mathprogbasepy as mpbpy
 import miosqp
 
@@ -34,15 +39,17 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
     print("Solving random problems with solver %s\n" % solver)
 
     # Define statistics to record
+    std_solve_time = np.zeros(len(n_vec))
     avg_solve_time = np.zeros(len(n_vec))
     min_solve_time = np.zeros(len(n_vec))
     max_solve_time = np.zeros(len(n_vec))
 
-    if solver == 'miosqp':
-        # Add OSQP solve times statistics
-        avg_osqp_solve_time = np.zeros(len(n_vec))
-        min_osqp_solve_time = np.zeros(len(n_vec))
-        max_osqp_solve_time = np.zeros(len(n_vec))
+    # Store also OSQP time
+    # if solver == 'miosqp':
+    #     # Add OSQP solve times statistics
+    #     avg_osqp_solve_time = np.zeros(len(n_vec))
+    #     min_osqp_solve_time = np.zeros(len(n_vec))
+    #     max_osqp_solve_time = np.zeros(len(n_vec))
 
     # reset random seed
     np.random.seed(seed)
@@ -59,8 +66,9 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
         # Define vector of cpu times
         solve_time_temp = np.zeros(repeat)
 
-        if solver == 'miosqp':
-            osqp_solve_time_temp = np.zeros(repeat)
+        # Store also OSQP time
+        # if solver == 'miosqp':
+        #     osqp_solve_time_temp = np.zeros(repeat)
 
         for j in tqdm(range(repeat)):
 
@@ -114,7 +122,7 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                              osqp_settings)
                 res_miosqp = model.solve()
 
-                # DEBUG
+                # DEBUG (check if solutions match)
                 # prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
                 # res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
                 # if np.linalg.norm(res_gurobi.x - res_miosqp.x) > 1e-02:
@@ -123,19 +131,25 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                 if res_miosqp.status != miosqp.MI_SOLVED:
                     import ipdb; ipdb.set_trace()
 
-                osqp_solve_time_temp[j] = 100 * (res_miosqp.osqp_solve_time / res_miosqp.run_time)
+
                 solve_time_temp[j] = 1e3 * res_miosqp.run_time
+
+                # Store OSQP time in percentage
+                # osqp_solve_time_temp[j] = 100 * (res_miosqp.osqp_solve_time / res_miosqp.run_time)
+
 
 
         # Get time statistics
+        std_solve_time[i] = np.std(solve_time_temp)
         avg_solve_time[i] = np.mean(solve_time_temp)
         max_solve_time[i] = np.max(solve_time_temp)
         min_solve_time[i] = np.min(solve_time_temp)
 
-        if solver == 'miosqp':
-            avg_osqp_solve_time[i] = np.mean(osqp_solve_time_temp)
-            max_osqp_solve_time[i] = np.max(osqp_solve_time_temp)
-            min_osqp_solve_time[i] = np.min(osqp_solve_time_temp)
+        # Store also OSQP time
+        # if solver == 'miosqp':
+        #     avg_osqp_solve_time[i] = np.mean(osqp_solve_time_temp)
+        #     max_osqp_solve_time[i] = np.max(osqp_solve_time_temp)
+        #     min_osqp_solve_time[i] = np.min(osqp_solve_time_temp)
 
 
 
@@ -143,14 +157,16 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
     df_dict = { 'n' : n_vec,
                 'm' : m_vec,
                 'p' : p_vec,
-                't_min[ms]' : min_solve_time,
-                't_max[ms]' : max_solve_time,
-                't_avg[ms]' : avg_solve_time }
+                't_min' : min_solve_time,
+                't_max' : max_solve_time,
+                't_avg' : avg_solve_time,
+                't_std' : std_solve_time }
 
-    if solver == 'miosqp':
-        df_dict.update({'t_osqp_min[%]' : min_osqp_solve_time,
-                        't_osqp_max[%]' : max_osqp_solve_time,
-                        't_osqp_avg[%]' : avg_osqp_solve_time })
+    # Store also OSQP time
+    # if solver == 'miosqp':
+    #     df_dict.update({'t_osqp_min' : min_osqp_solve_time,
+    #                     't_osqp_max' : max_osqp_solve_time,
+    #                     't_osqp_avg' : avg_osqp_solve_time })
 
     timings = pd.DataFrame(df_dict)
 
@@ -163,9 +179,9 @@ if __name__ == "__main__":
 
     # General settings
     n_repeat = 10               # Number of repetitions for each problem
-    problem_set = 1             # Problem sets 1 (q << n) or 2 (q = n)
-    density_level = 0.6         # density level for sparse matrices
-    random_seed = 0              # set random seed to make results reproducible
+    problem_set = 2             # Problem sets 1 (q << n) or 2 (q = n)
+    density_level = 0.7         # density level for sparse matrices
+    random_seed = 0             # set random seed to make results reproducible
 
 
     if problem_set == 1:
@@ -175,9 +191,9 @@ if __name__ == "__main__":
 
     # Other problems n = q
     elif problem_set == 2:
-        n_arr = np.array([2, 4, 8, 12, 20, 25, 30, 35])
+        n_arr = np.array([2, 4, 8, 12, 20, 26, 30, 36])
         m_arr = 5 * n_arr
-        p_arr = n_arr
+        p_arr = (0.5 * n_arr).astype(int)
 
     n_prob = len(n_arr)                  # Number of problems in problem set
 
@@ -194,3 +210,8 @@ if __name__ == "__main__":
 
     print("\nResults MIOSQP")
     print(timings_miosqp)
+
+
+    # Figure
+    # plt.figure()
+    # plt.

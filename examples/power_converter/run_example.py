@@ -72,10 +72,12 @@ model.gen_dynamical_system(fsw_des, delta)
 model.gen_tail_cost(N_tail, gamma, name='delta_550.mat')
 
 # Simulate model
+gurobi_std_time = np.zeros(len(N_adp))
 gurobi_avg_time = np.zeros(len(N_adp))
 gurobi_min_time = np.zeros(len(N_adp))
 gurobi_max_time = np.zeros(len(N_adp))
 
+miosqp_std_time = np.zeros(len(N_adp))
 miosqp_avg_time = np.zeros(len(N_adp))
 miosqp_min_time = np.zeros(len(N_adp))
 miosqp_max_time = np.zeros(len(N_adp))
@@ -83,14 +85,16 @@ miosqp_max_time = np.zeros(len(N_adp))
 
 for i in range(len(N_adp)):
 
-    # stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, solver='gurobi')
-    #
-    # gurobi_avg_time[i] = stats_gurobi.avg_solve_time
-    # gurobi_min_time[i] = stats_gurobi.min_solve_time
-    # gurobi_max_time[i] = stats_gurobi.max_solve_time
+    stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, solver='gurobi')
+
+    gurobi_std_time[i] = stats_gurobi.std_solve_time
+    gurobi_avg_time[i] = stats_gurobi.avg_solve_time
+    gurobi_min_time[i] = stats_gurobi.min_solve_time
+    gurobi_max_time[i] = stats_gurobi.max_solve_time
 
     stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, solver='miosqp')
 
+    miosqp_std_time[i] = stats_miosqp.std_solve_time
     miosqp_avg_time[i] = stats_miosqp.avg_solve_time
     miosqp_min_time[i] = stats_miosqp.min_solve_time
     miosqp_max_time[i] = stats_miosqp.max_solve_time
@@ -98,9 +102,11 @@ for i in range(len(N_adp)):
 
 # Create pandas dataframe
 timings = pd.DataFrame({ 'grb_avg' : 1e03 * gurobi_avg_time,
+                         'grb_std' : 1e03 * gurobi_std_time,
                          'grb_min' : 1e03 * gurobi_min_time,
                          'grb_max' : 1e03 * gurobi_max_time,
                          'miosqp_avg' : 1e03 * miosqp_avg_time,
+                         'miosqp_std' : 1e03 * miosqp_std_time,
                          'miosqp_min' : 1e03 * miosqp_min_time,
                          'miosqp_max' : 1e03 * miosqp_max_time},
                          index=N_adp)
