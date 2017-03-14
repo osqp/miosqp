@@ -1,4 +1,4 @@
-# MIQP solver based on OSQP
+# MIQP python solver based on OSQP
 The solver lives in the `miosqp` package. In order to run it you need to install the [OSQP Python interface](https://github.com/bstellato/osqp).
 
 ## Run example

@@ -8,6 +8,13 @@ Simulate inverter model with ADP formulation from the paper
 import numpy as np
 import pandas as pd
 
+
+# Import plotting library
+import matplotlib.pylab as plt
+colors = { 'b': '#1f77b4',
+           'g': '#2ca02c',
+           'o': '#ff7f0e'}
+
 # Power converter model files
 from power_converter import Model
 
@@ -28,7 +35,7 @@ flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 ADP Parameters
 '''
 gamma = 0.95                # Forgetting factor
-N_adp = np.arange(2, 7)     # Horizon length
+N_adp = np.arange(1, 7)     # Horizon length
 delta = 5.5                 # Switching frequency penalty
 N_tail = 50
 
@@ -92,7 +99,13 @@ for i in range(len(N_adp)):
     gurobi_min_time[i] = stats_gurobi.min_solve_time
     gurobi_max_time[i] = stats_gurobi.max_solve_time
 
-    stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, solver='miosqp')
+    if N_adp[i] == 3:
+        plot_flag = 1
+    else:
+        plot_flag = 0
+
+    stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, solver='miosqp', plot=plot_flag)
+
 
     miosqp_std_time[i] = stats_miosqp.std_solve_time
     miosqp_avg_time[i] = stats_miosqp.avg_solve_time
@@ -101,15 +114,56 @@ for i in range(len(N_adp)):
 
 
 # Create pandas dataframe
-timings = pd.DataFrame({ 'grb_avg' : 1e03 * gurobi_avg_time,
-                         'grb_std' : 1e03 * gurobi_std_time,
-                         'grb_min' : 1e03 * gurobi_min_time,
-                         'grb_max' : 1e03 * gurobi_max_time,
-                         'miosqp_avg' : 1e03 * miosqp_avg_time,
-                         'miosqp_std' : 1e03 * miosqp_std_time,
-                         'miosqp_min' : 1e03 * miosqp_min_time,
-                         'miosqp_max' : 1e03 * miosqp_max_time},
+timings = pd.DataFrame({ 'grb_avg' : gurobi_avg_time,
+                         'grb_std' : gurobi_std_time,
+                         'grb_min' : gurobi_min_time,
+                         'grb_max' : gurobi_max_time,
+                         'miosqp_avg' : miosqp_avg_time,
+                         'miosqp_std' : miosqp_std_time,
+                         'miosqp_min' : miosqp_min_time,
+                         'miosqp_max' : miosqp_max_time},
                          index=N_adp)
+
+
+
 
 print("Results")
 print(timings)
+
+# # Converting results to latex table and storing them to a file
+# formatter = lambda x: '%1.2f' % x
+# latex_table = timings.to_latex(header=False,
+#                                float_format=formatter)
+# f = open('results/power_converter_miqp.tex', 'w')
+# f.write(latex_table)
+# f.close()
+
+
+
+# Create error plots with fill_between
+plt.figure()
+ax = plt.gca()
+# ax.set_ylim(0.1, 25.)
+plt.semilogy(N_adp, gurobi_avg_time, color=colors['o'],
+         label='GUROBI')
+gurobi_min_fill = np.maximum(gurobi_avg_time - gurobi_std_time, 1e-06)
+# ax.fill_between(N_adp, gurobi_avg_time + gurobi_std_time,
+                # gurobi_min_fill, alpha=0.5, facecolor=colors['o'])
+plt.semilogy(N_adp, miosqp_avg_time, color=colors['b'],
+         label='Our method')
+# miosqp_min_fill = np.maximum(miosqp_avg_time - miosqp_std_time,  1e-06)
+# ax.fill_between(N_adp, miosqp_avg_time + miosqp_std_time,
+                # miosqp_min_fill, alpha=0.5, facecolor=colors['b'])
+plt.xticks(N_adp)
+ax.set_xlabel(r'Horizon length $T$')
+ax.set_ylabel(r'Time [s]')
+ax.legend(loc='upper left')
+plt.tight_layout()
+# plt.show()
+plt.savefig('results/power_converter_timings.pdf')
+
+
+
+
+
+#

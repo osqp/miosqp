@@ -2,6 +2,12 @@
 Utilities for power converter simulation
 """
 import matplotlib.pylab as plt
+plt.rc('axes', labelsize=20)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=15)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=15)    # fontsize of the tick labels
+plt.rc('legend', fontsize=15)    # legend fontsize
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
 import numpy as np
 import numpy.fft as fft
 
@@ -39,6 +45,8 @@ def plot(results, time):
     plt.xticks(x_ticks, x_ticks_labels)
     plt.grid()
     axes.set_xlabel('Time [ms]')
+    plt.tight_layout()
+    plt.savefig('results/power_converter_currents.pdf')
     plt.show(block=False)
 
 
@@ -64,6 +72,7 @@ def plot(results, time):
     ax[2].set_xticks(x_ticks)
     ax[2].set_xticklabels(x_ticks_labels)
     plt.tight_layout()
+    plt.savefig('results/power_converter_inputs.pdf')
     plt.show(block=False)
 
 

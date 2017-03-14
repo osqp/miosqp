@@ -77,11 +77,11 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
 
             # Generate random Matrices
             Pt = spa.random(n, n, density=dns_level)
-            P = spa.csc_matrix(np.dot(Pt.T, Pt))
+            P = spa.csc_matrix(np.dot(Pt, Pt.T))
             q = sp.randn(n)
             A = spa.random(m, n, density=dns_level)
-            u = 1 + sp.rand(m)
-            l = -1 + sp.rand(m)
+            u = 2 + sp.rand(m)
+            l = -2 + sp.rand(m)
 
             # Enforce [0, 1] bounds on variables
             A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
     # General settings
     n_repeat = 10               # Number of repetitions for each problem
-    problem_set = 2             # Problem sets 1 (q << n) or 2 (q = n)
+    problem_set = 1             # Problem sets 1 (q << n) or 2 (q = n)
     density_level = 0.7         # density level for sparse matrices
     random_seed = 0             # set random seed to make results reproducible
 
@@ -205,11 +205,29 @@ if __name__ == "__main__":
                            density_level, random_seed, solver='miosqp')
 
 
-    print("\nResults GUROBI")
-    print(timings_gurobi)
+    print("Comparison table")
+    df_dict = { 'n' : n_arr,
+                'm' : m_arr,
+                'p' : p_arr,
+                't_miosqp_avg' : timings_miosqp['t_avg'],
+                't_miosqp_std' : timings_miosqp['t_std'],
+                't_gurobi_avg' : timings_gurobi['t_avg'],
+                't_gurobi_std' : timings_gurobi['t_std']}
+    comparison_table = pd.DataFrame(df_dict)
+    cols = ['n', 'm', 'p', 't_miosqp_avg', 't_miosqp_std',
+            't_gurobi_avg', 't_gurobi_std']
+    comparison_table = comparison_table[cols]  # Sort table columns
+    print(comparison_table)
 
-    print("\nResults MIOSQP")
-    print(timings_miosqp)
+    # Converting results to latex table and storing them to a file
+    formatter = lambda x: '%1.2f' % x
+    latex_table = comparison_table.to_latex(header=False, index=False,
+                                            float_format=formatter)
+    f = open('results/random_miqp.tex', 'w')
+    f.write(latex_table)
+    f.close()
+
+
 
 
     # Figure
