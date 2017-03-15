@@ -461,6 +461,7 @@ class Model(object):
                                  'alpha': 1.5,
                                  'polish': False,
                                  'max_iter': 2000,
+                                 'early_terminate_interval': 25,
                                  'verbose': False}
                 self.solver = miosqp.MIOSQP()
                 self.solver.setup(qp.P, q, qp.A, qp.l,
