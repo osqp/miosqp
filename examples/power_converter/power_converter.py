@@ -473,6 +473,7 @@ class Model(object):
             self.solver.set_x0(u_prev)
             res_miosqp = self.solver.solve()
 
+            # import ipdb; ipdb.set_trace()
 
             # DEBUG Check if gurobi gives same solution
             # N.B. They do not match when the norm of the
@@ -484,7 +485,7 @@ class Model(object):
             # if np.linalg.norm(res_miosqp.x - res_gurobi.x)> 1e-02:
             #     print("Norm of difference of solution = %.4e" % \
             #           np.linalg.norm(res_miosqp.x - res_gurobi.x))
-            #     import ipdb; ipdb.set_trace()
+                # import ipdb; ipdb.set_trace()
 
 
 

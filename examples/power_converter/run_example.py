@@ -99,6 +99,8 @@ for i in range(len(N_adp)):
     gurobi_min_time[i] = stats_gurobi.min_solve_time
     gurobi_max_time[i] = stats_gurobi.max_solve_time
 
+
+    # Make plots for horizon 3
     if N_adp[i] == 3:
         plot_flag = 1
     else:
