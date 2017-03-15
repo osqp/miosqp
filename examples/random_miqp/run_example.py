@@ -114,6 +114,7 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                                  'alpha': 1.5,
                                  'polish': False,
                                  'max_iter': 2000,
+                                 'early_terminate_interval':25,
                                  'verbose': False}
 
                 model = miosqp.MIOSQP()
