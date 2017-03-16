@@ -78,7 +78,6 @@ model.gen_dynamical_system(fsw_des, delta)
 # Generate tail cost
 model.gen_tail_cost(N_tail, gamma, name='delta_550.mat')
 
-# Simulate model
 gurobi_std_time = np.zeros(len(N_adp))
 gurobi_avg_time = np.zeros(len(N_adp))
 gurobi_min_time = np.zeros(len(N_adp))
@@ -88,7 +87,10 @@ miosqp_std_time = np.zeros(len(N_adp))
 miosqp_avg_time = np.zeros(len(N_adp))
 miosqp_min_time = np.zeros(len(N_adp))
 miosqp_max_time = np.zeros(len(N_adp))
+miosqp_avg_osqp_iter = np.zeros(len(N_adp))
 
+
+# Simulate model
 
 for i in range(len(N_adp)):
 
@@ -113,6 +115,8 @@ for i in range(len(N_adp)):
     miosqp_avg_time[i] = stats_miosqp.avg_solve_time
     miosqp_min_time[i] = stats_miosqp.min_solve_time
     miosqp_max_time[i] = stats_miosqp.max_solve_time
+    miosqp_avg_osqp_iter[i] = stats_miosqp.miosqp_avg_osqp_iter
+
 
 
 # Create pandas dataframe
@@ -123,7 +127,8 @@ timings = pd.DataFrame({ 'grb_avg' : gurobi_avg_time,
                          'miosqp_avg' : miosqp_avg_time,
                          'miosqp_std' : miosqp_std_time,
                          'miosqp_min' : miosqp_min_time,
-                         'miosqp_max' : miosqp_max_time},
+                         'miosqp_max' : miosqp_max_time,
+                         'miosqp_avg_osqp_iter': miosqp_avg_osqp_iter},
                          index=N_adp)
 
 
@@ -141,25 +146,19 @@ print(timings)
 # f.close()
 
 
-
 # Create error plots with fill_between
 plt.figure()
 ax = plt.gca()
-# ax.set_ylim(0.1, 25.)
 plt.semilogy(N_adp, gurobi_avg_time, color=colors['o'],
          label='GUROBI')
 gurobi_min_fill = np.maximum(gurobi_avg_time - gurobi_std_time, 1e-06)
-# ax.fill_between(N_adp, gurobi_avg_time + gurobi_std_time,
-                # gurobi_min_fill, alpha=0.5, facecolor=colors['o'])
 plt.semilogy(N_adp, miosqp_avg_time, color=colors['b'],
-         label='Our method')
-# miosqp_min_fill = np.maximum(miosqp_avg_time - miosqp_std_time,  1e-06)
-# ax.fill_between(N_adp, miosqp_avg_time + miosqp_std_time,
-                # miosqp_min_fill, alpha=0.5, facecolor=colors['b'])
+         label='miOSQP')
 plt.xticks(N_adp)
 ax.set_xlabel(r'Horizon length $T$')
 ax.set_ylabel(r'Time [s]')
 ax.legend(loc='upper left')
+plt.grid(True, which="both")
 plt.tight_layout()
 # plt.show()
 plt.savefig('results/power_converter_timings.pdf')

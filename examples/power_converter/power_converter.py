@@ -500,8 +500,10 @@ class Model(object):
         # Get first input
         u0 = u[:6]
 
-
-        return u0, obj_val, solve_time, u
+        if solver == 'miosqp':
+            return u0, obj_val, solve_time, u, res_miosqp.osqp_iter_avg
+        else:
+            return u0, obj_val, solve_time, u, 0
 
     def simulate_one_step(self, x, u):
         """
@@ -597,6 +599,10 @@ class Model(object):
         # Reset solver
         self.solver = None
 
+        if solver == 'miosqp':
+            # If miosqp, set avg numer of iterations to 0
+            miosqp_avg_osqp_iter = 0
+
         # Rename some variables for notation ease
         nx = self.dyn_system.A.shape[0]
         nu = self.dyn_system.B.shape[1]
@@ -625,7 +631,7 @@ class Model(object):
 
 
             # Compute mpc inputs
-            U[:, i], obj_vals[i], solve_times[i], u_prev = \
+            U[:, i], obj_vals[i], solve_times[i], u_prev, osqp_iter = \
             self.compute_mpc_input(X[:, i], u_prev, solver=solver)
 
             # Simulate one step
@@ -633,6 +639,15 @@ class Model(object):
 
             # Shift u_prev
             u_prev = np.append(u_prev[nu:], u_prev[-nu:])
+
+            if solver == 'miosqp':
+                # Append average number of osqp iterations
+                miosqp_avg_osqp_iter += osqp_iter
+
+        if solver == 'miosqp':
+            # Divide total number of average iterations by time steps
+            miosqp_avg_osqp_iter /= T_final
+
 
         # Compute additional signals for plotting
         Y_phase, Y_star_phase, T_e, T_e_des = self.compute_signals(X)
@@ -647,5 +662,8 @@ class Model(object):
 
         # Get statistics
         stats = self.get_statistics(results)
+
+        if solver == 'miosqp':
+            stats.miosqp_avg_osqp_iter = miosqp_avg_osqp_iter
 
         return stats

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 
 # Import osqp solver
@@ -31,7 +33,9 @@ class Workspace(object):
     iter_num: int
         number of iterations
     osqp_iter: int
-        number of osqp admm iteration
+        number of osqp admm iterations
+    osqp_iter_avg: int
+        average number of osqp admm iterations
     osqp_solve_time: float
         total time required to solve OSQP problems
     run_time: double
@@ -64,6 +68,7 @@ class Workspace(object):
         self.iter_num = 1
         self.osqp_solve_time = 0.
         self.osqp_iter = 0
+        self.osqp_iter_avg = 0
         self.lower_glob = -np.inf
         self.status = MI_UNSOLVED
 

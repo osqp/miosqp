@@ -125,6 +125,9 @@ class MIOSQP(object):
             # lowers.append(work.lower_glob)
             # uppers.append(work.upper_glob)
 
+        # Update average number of OSQP iterations
+        work.osqp_iter_avg = work.osqp_iter / work.iter_num
+
         # Get final status
         work.get_return_status()
 
@@ -166,7 +169,7 @@ class MIOSQP(object):
         # Return results
         return Results(self.work.x, self.work.upper_glob,
                        self.work.run_time, self.work.status,
-                       self.work.osqp_solve_time)
+                       self.work.osqp_solve_time, self.work.osqp_iter_avg)
 
 
     def update_vectors(self, q=None, l=None, u=None):
@@ -190,6 +193,7 @@ class MIOSQP(object):
         work.iter_num = 1
         work.osqp_solve_time = 0.
         work.osqp_iter = 0
+        work.osqp_iter_avg = 0
         work.lower_glob = -np.inf
         work.status = MI_UNSOLVED
 
