@@ -11,6 +11,7 @@ import pandas as pd
 
 # Import plotting library
 import matplotlib.pylab as plt
+import matplotlib
 colors = { 'b': '#1f77b4',
            'g': '#2ca02c',
            'o': '#ff7f0e'}
@@ -151,7 +152,6 @@ plt.figure()
 ax = plt.gca()
 plt.semilogy(N_adp, gurobi_avg_time, color=colors['o'],
          label='GUROBI')
-gurobi_min_fill = np.maximum(gurobi_avg_time - gurobi_std_time, 1e-06)
 plt.semilogy(N_adp, miosqp_avg_time, color=colors['b'],
          label='miOSQP')
 plt.xticks(N_adp)
