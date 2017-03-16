@@ -35,7 +35,7 @@ flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
 ADP Parameters
 '''
 gamma = 0.95                # Forgetting factor
-N_adp = np.arange(1, 7)     # Horizon length
+N_adp = np.arange(1, 6)     # Horizon length
 delta = 5.5                 # Switching frequency penalty
 N_tail = 50
 

@@ -89,7 +89,7 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
             if solver == 'gurobi':
                 # Solve with gurobi
                 prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-                res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+                res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, Threads=1)
                 if res_gurobi.status != 'optimal':
                     import ipdb; ipdb.set_trace()
                 solve_time_temp[j] = 1e3 * res_gurobi.cputime

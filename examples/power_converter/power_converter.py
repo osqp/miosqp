@@ -362,6 +362,7 @@ class Time(object):
         self.sim_periods = sim_periods
         self.Nstpp = Nstpp
         self.T_final = (init_periods + sim_periods) * Nstpp
+        self.T_timing = sim_periods * Nstpp
         self.Ts = Ts
         self.t0 = t0
         self.t = np.linspace(t0, Ts * self.T_final, self.T_final + 1)
@@ -433,11 +434,13 @@ class Model(object):
 
         if solver == 'gurobi':
             # Solve problem
-            prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx)
-            res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, x0=u_prev)
+            prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx, x0=u_prev)
+            res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False,
+                                    Threads=1)
             u = res_gurobi.x
             obj_val = res_gurobi.obj_val
             solve_time = res_gurobi.cputime
+
 
         elif solver == 'miosqp':
 
@@ -608,6 +611,7 @@ class Model(object):
         nu = self.dyn_system.B.shape[1]
         ny = self.dyn_system.C.shape[0]
         T_final = self.time.T_final
+        T_timing = self.time.T_timing
 
 
         # Compute QP matrices
@@ -617,7 +621,7 @@ class Model(object):
         X = np.zeros((nx, T_final + 1))
         U = np.zeros((nu, T_final))
         Y = np.zeros((ny, T_final))
-        solve_times = np.zeros(T_final)  # Computing times
+        solve_times = np.zeros(T_timing)  # Computing times
         obj_vals = np.zeros(T_final)     # Objective values
 
         # Set initial statte
@@ -631,8 +635,12 @@ class Model(object):
 
 
             # Compute mpc inputs
-            U[:, i], obj_vals[i], solve_times[i], u_prev, osqp_iter = \
+            U[:, i], obj_vals[i], time_temp, u_prev, osqp_iter = \
             self.compute_mpc_input(X[:, i], u_prev, solver=solver)
+
+            # Store time if after the init periods
+            if i >= self.time.init_periods * self.time.Nstpp:
+                solve_times[i - self.time.init_periods * self.time.Nstpp] = time_temp
 
             # Simulate one step
             X[:, i + 1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
