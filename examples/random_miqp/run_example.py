@@ -212,11 +212,14 @@ if __name__ == "__main__":
                 'p' : p_arr,
                 't_miosqp_avg' : timings_miosqp['t_avg'],
                 't_miosqp_std' : timings_miosqp['t_std'],
+                't_miosqp_max' : timings_miosqp['t_max'],
                 't_gurobi_avg' : timings_gurobi['t_avg'],
-                't_gurobi_std' : timings_gurobi['t_std']}
+                't_gurobi_std' : timings_gurobi['t_std'],
+                't_gurobi_max' : timings_gurobi['t_max']}
     comparison_table = pd.DataFrame(df_dict)
     cols = ['n', 'm', 'p', 't_miosqp_avg', 't_miosqp_std',
-            't_gurobi_avg', 't_gurobi_std']
+            't_miosqp_max', 't_gurobi_avg', 't_gurobi_std',
+            't_gurobi_max']
     comparison_table = comparison_table[cols]  # Sort table columns
     print(comparison_table)
 
