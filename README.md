@@ -11,4 +11,4 @@ Note that you need [pandas](http://pandas.pydata.org/) package for storing the r
 
 
 ## Maximum number of iterations
-For some problem instances, OSQP reaches the maximum number of iterations. In order to deal with them, they are dumped to different files in the `max_iter_examples` folder. In order to load them separately and solve them with OSQP, you can run the `run_maxiter_problem.py` file.
+For some problem instances, OSQP reaches the maximum number of iterations. In order to deal with them, they are dumped to different files in the `max_iter_examples` folder. In order to load them separately and solve them with OSQP, you can run `examples/run_maxiter_problem.py` file.
