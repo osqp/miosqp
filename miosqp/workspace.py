@@ -281,8 +281,8 @@ class Workspace(object):
         self.osqp_solve_time += leaf.osqp_solve_time
 
         # 1) If infeasible or unbounded, then return (prune)
-        if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
-            leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
+        if leaf.status == self.solver.constant('OSQP_PRIMAL_INFEASIBLE') or \
+            leaf.status == self.solver.constant('OSQP_DUAL_INFEASIBLE'):
             return
 
         # 2) If lower bound is greater than upper bound, then return (prune)
@@ -349,9 +349,9 @@ class Workspace(object):
                 self.status = MI_SOLVED
             else:
                 if self.upper_glob >= 0:  # +inf
-                    self.status = MI_INFEASIBLE
+                    self.status = MI_PRIMAL_INFEASIBLE
                 else:                     # -inf
-                    self.status = MI_UNBOUNDED
+                    self.status = MI_DUAL_INFEASIBLE
 
         else:  # Hit maximum number of iterations
             if self.upper_glob != np.inf:
@@ -360,7 +360,8 @@ class Workspace(object):
                 if self.upper_glob >= 0:  # +inf
                     self.status = MI_MAX_ITER_UNSOLVED
                 else:                     # -inf
-                    self.status = MI_UNBOUNDED
+                    self.status = MI_DUAL_INFEASIBLE
+
 
     def get_return_solution(self):
         """
@@ -391,8 +392,8 @@ class Workspace(object):
         else:
             gap = "%8.2f%%" % ((self.upper_glob - self.lower_glob)/abs(self.lower_glob)*100)
 
-        if leaf.status == self.solver.constant('OSQP_INFEASIBLE') or \
-            leaf.status == self.solver.constant('OSQP_UNBOUNDED'):
+        if leaf.status == self.solver.constant('OSQP_PRIMAL_INFEASIBLE') or \
+            leaf.status == self.solver.constant('OSQP_DUAL_INFEASIBLE'):
             obj = np.inf
         else:
             obj = leaf.lower

@@ -115,7 +115,7 @@ class Node(object):
 
         # DEBUG: Problems that hit max_iter are infeasible
         # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
-            # self.status = self.solver.constant('OSQP_INFEASIBLE')
+            # self.status = self.solver.constant('OSQP_PRIMAL_INFEASIBLE')
 
         # Store number of iterations
         self.num_iter = results.info.iter

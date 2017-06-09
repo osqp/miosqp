@@ -43,7 +43,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
     avg_solve_time = np.zeros(len(n_vec))
     min_solve_time = np.zeros(len(n_vec))
     max_solve_time = np.zeros(len(n_vec))
-
+    
+    n_prob = len(n_vec)
     # Store also OSQP time
     # if solver == 'miosqp':
     #     # Add OSQP solve times statistics
@@ -106,15 +107,15 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                                    'verbose': False,
                                    'print_interval': 1}
 
-                osqp_settings = {'eps_abs': 1e-04,
-                                 'eps_rel': 1e-04,
-                                 'eps_inf': 1e-04,
-                                 'rho': 0.005,
-                                 'sigma': 0.01,
-                                 'alpha': 1.5,
+                osqp_settings = {'eps_abs': 1e-03,
+                                 'eps_rel': 1e-03,
+                                 'eps_prim_inf': 1e-04,
+                                 'rho': 0.05,
+                                 'sigma': 1e-06,
+                                 'alpha': 1.6,
                                  'polish': False,
                                  'max_iter': 2000,
-                                 'early_terminate_interval':25,
+                                 'early_terminate_interval': 25,
                                  'verbose': False}
 
                 model = miosqp.MIOSQP()
@@ -175,8 +176,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
 
 
 
-
-if __name__ == "__main__":
+def run_example():
+#  if __name__ == "__main__":
 
     # General settings
     n_repeat = 10               # Number of repetitions for each problem

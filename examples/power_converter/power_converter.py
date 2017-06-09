@@ -2,7 +2,7 @@ import numpy as np
 import numpy.linalg as nla
 import scipy.linalg as sla
 import math
-import utils
+from ..power_converter import utils 
 
 # Import progress bar
 from tqdm import tqdm
@@ -15,8 +15,8 @@ import miosqp
 
 
 # Internal functions and objects
-from tail_cost import TailCost
-from quadratic_program import MIQP
+from .tail_cost import TailCost
+from .quadratic_program import MIQP
 
 class Statistics(object):
     def __init__(self, fsw, thd, max_solve_time, min_solve_time,
@@ -446,7 +446,7 @@ class Model(object):
 
             if self.solver == None:
                 # Define problem settings
-                miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
+                miosqp_settings = {'eps_int_feas': 1e-02,   # integer feasibility tolerance
                                    'max_iter_bb': 2000,     # maximum number of iterations
                                    'tree_explor_rule': 1,   # tree exploration rule
                                                             #   [0] depth first
@@ -456,12 +456,12 @@ class Model(object):
                                    'verbose': False,
                                    'print_interval': 1}
 
-                osqp_settings = {'eps_abs': 1e-04,
-                                 'eps_rel': 1e-04,
-                                 'eps_inf': 1e-04,
-                                 'rho': 0.0001,
-                                 'sigma': 0.1,
-                                 'alpha': 1.5,
+                osqp_settings = {'eps_abs': 1e-03,
+                                 'eps_rel': 1e-03,
+                                 'eps_prim_inf': 1e-04,
+                                 'rho': 0.001,
+                                 'sigma': 1e-06,
+                                 'alpha': 1.6,
                                  'polish': False,
                                  'max_iter': 2000,
                                  'early_terminate_interval': 25,
