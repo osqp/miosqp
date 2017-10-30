@@ -37,14 +37,13 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
     avg_solve_time = np.zeros(len(n_vec))
     min_solve_time = np.zeros(len(n_vec))
     max_solve_time = np.zeros(len(n_vec))
-    
+
     n_prob = len(n_vec)
+
     # Store also OSQP time
-    # if solver == 'miosqp':
-    #     # Add OSQP solve times statistics
-    #     avg_osqp_solve_time = np.zeros(len(n_vec))
-    #     min_osqp_solve_time = np.zeros(len(n_vec))
-    #     max_osqp_solve_time = np.zeros(len(n_vec))
+    if solver == 'miosqp':
+        # Add OSQP solve times statistics
+        avg_osqp_solve_time = np.zeros(len(n_vec))
 
     # reset random seed
     np.random.seed(seed)
@@ -62,11 +61,11 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
         solve_time_temp = np.zeros(repeat)
 
         # Store also OSQP time
-        # if solver == 'miosqp':
-        #     osqp_solve_time_temp = np.zeros(repeat)
+        if solver == 'miosqp':
+            osqp_solve_time_temp = np.zeros(repeat)
 
-        #  for j in tqdm(range(repeat)):
-        for j in range(repeat):
+        for j in tqdm(range(repeat)):
+        #  for j in range(repeat):
 
             # Generate random vector of indeces
             i_idx = np.random.choice(np.arange(0, n), p, replace=False)
@@ -80,10 +79,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
             l = -2 + sp.rand(m)
 
             # Enforce [0, 1] bounds on variables
-            # Add osqp bounds
             i_l = np.zeros(p)
             i_u = np.ones(p)
-            
             #  A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
 
             if solver == 'gurobi':
@@ -98,24 +95,24 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
 
             elif solver == 'miosqp':
                 # Define problem settings
-                miosqp_settings = {'eps_int_feas': 1e-03,   # integer feasibility tolerance
-                                   'max_iter_bb': 1000,     # maximum number of iterations
-                                   'tree_explor_rule': 1,   # tree exploration rule
-                                                            #   [0] depth first
-                                                            #   [1] two-phase: depth first until first incumbent and then  best bound
-                                   'branching_rule': 0,     # branching rule
-                                                            #   [0] max fractional part
+                miosqp_settings = {
+                                   # integer feasibility tolerance
+                                   'eps_int_feas': 1e-03,
+                                   # maximum number of iterations
+                                   'max_iter_bb': 1000,
+                                   # tree exploration rule
+                                   #   [0] depth first
+                                   #   [1] two-phase: depth first until first incumbent and then  best bound
+                                   'tree_explor_rule': 1,
+                                   # branching rule
+                                   #   [0] max fractional part
+                                   'branching_rule': 0,
                                    'verbose': False,
                                    'print_interval': 1}
 
                 osqp_settings = {'eps_abs': 1e-03,
                                  'eps_rel': 1e-03,
                                  'eps_prim_inf': 1e-04,
-                                 #  'rho': 0.05,
-                                 #  'sigma': 1e-06,
-                                 #  'alpha': 1.6,
-                                 #  'polish': False,
-                                 #  'max_iter': 2000,
                                  'verbose': False}
 
                 model = miosqp.MIOSQP()
@@ -134,13 +131,16 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                 #  import ipdb; ipdb.set_trace()
 
                 if res_miosqp.status != miosqp.MI_SOLVED:
-                    import ipdb; ipdb.set_trace()
-
-
+                    import ipdb
+                    ipdb.set_trace()
+                
+                # Solution time 
                 solve_time_temp[j] = 1e3 * res_miosqp.run_time
 
                 # Store OSQP time in percentage
-                # osqp_solve_time_temp[j] = 100 * (res_miosqp.osqp_solve_time / res_miosqp.run_time)
+                if solver == 'miosqp':
+                    osqp_solve_time_temp[j] = \
+                        100 * (res_miosqp.osqp_solve_time / res_miosqp.run_time)
 
         # Get time statistics
         std_solve_time[i] = np.std(solve_time_temp)
@@ -149,10 +149,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
         min_solve_time[i] = np.min(solve_time_temp)
 
         # Store also OSQP time
-        # if solver == 'miosqp':
-        #     avg_osqp_solve_time[i] = np.mean(osqp_solve_time_temp)
-        #     max_osqp_solve_time[i] = np.max(osqp_solve_time_temp)
-        #     min_osqp_solve_time[i] = np.min(osqp_solve_time_temp)
+        if solver == 'miosqp':
+            avg_osqp_solve_time[i] = np.mean(osqp_solve_time_temp)
 
     # Create pandas dataframe for the results
     df_dict = {'n': n_vec,
@@ -164,10 +162,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                't_std': std_solve_time}
 
     # Store also OSQP time
-    # if solver == 'miosqp':
-    #     df_dict.update({'t_osqp_min' : min_osqp_solve_time,
-    #                     't_osqp_max' : max_osqp_solve_time,
-    #                     't_osqp_avg' : avg_osqp_solve_time })
+    if solver == 'miosqp':
+        df_dict.update({'t_osqp_avg': avg_osqp_solve_time})
 
     timings = pd.DataFrame(df_dict)
 
@@ -206,12 +202,14 @@ def run_example():
                't_miosqp_avg': timings_miosqp['t_avg'],
                't_miosqp_std': timings_miosqp['t_std'],
                't_miosqp_max': timings_miosqp['t_max'],
+               't_miosqp_osqp_avg': timings_miosqp['t_osqp_avg'],
                't_gurobi_avg': timings_gurobi['t_avg'],
                't_gurobi_std': timings_gurobi['t_std'],
                't_gurobi_max': timings_gurobi['t_max']}
     comparison_table = pd.DataFrame(df_dict)
     cols = ['n', 'm', 'p', 't_miosqp_avg', 't_miosqp_std',
-            't_miosqp_max', 't_gurobi_avg', 't_gurobi_std',
+            't_miosqp_max', 't_miosqp_osqp_avg',
+            't_gurobi_avg', 't_gurobi_std',
             't_gurobi_max']
     comparison_table = comparison_table[cols]  # Sort table columns
     comparison_table.to_csv('results/random_miqp.csv', index=False)

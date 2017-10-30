@@ -86,19 +86,18 @@ def run_example():
     miosqp_min_time = np.zeros(len(N_adp))
     miosqp_max_time = np.zeros(len(N_adp))
     miosqp_avg_osqp_iter = np.zeros(len(N_adp))
-
+    miosqp_osqp_avg_time = np.zeros(len(N_adp))
 
     # Simulate model
-
     for i in range(len(N_adp)):
 
-        stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, solver='gurobi')
+        stats_gurobi = model.simulate_cl(N_adp[i], flag_steady_trans, 
+                                         solver='gurobi')
 
         gurobi_std_time[i] = stats_gurobi.std_solve_time
         gurobi_avg_time[i] = stats_gurobi.avg_solve_time
         gurobi_min_time[i] = stats_gurobi.min_solve_time
         gurobi_max_time[i] = stats_gurobi.max_solve_time
-
 
         # Make plots for horizon 3
         if N_adp[i] == 3:
@@ -106,53 +105,41 @@ def run_example():
         else:
             plot_flag = 0
 
-        stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, solver='miosqp', plot=plot_flag)
-
+        stats_miosqp = model.simulate_cl(N_adp[i], flag_steady_trans, 
+                                         solver='miosqp', plot=plot_flag)
 
         miosqp_std_time[i] = stats_miosqp.std_solve_time
         miosqp_avg_time[i] = stats_miosqp.avg_solve_time
         miosqp_min_time[i] = stats_miosqp.min_solve_time
         miosqp_max_time[i] = stats_miosqp.max_solve_time
         miosqp_avg_osqp_iter[i] = stats_miosqp.miosqp_avg_osqp_iter
-
-
+        miosqp_osqp_avg_time[i] = stats_miosqp.miosqp_osqp_avg_time
 
     # Create pandas dataframe
-    timings = pd.DataFrame({ 'grb_avg' : gurobi_avg_time,
-                             'grb_std' : gurobi_std_time,
-                             'grb_min' : gurobi_min_time,
-                             'grb_max' : gurobi_max_time,
-                             'miosqp_avg' : miosqp_avg_time,
-                             'miosqp_std' : miosqp_std_time,
-                             'miosqp_min' : miosqp_min_time,
-                             'miosqp_max' : miosqp_max_time,
-                             'miosqp_avg_osqp_iter': miosqp_avg_osqp_iter},
-                             index=N_adp)
-
-
-
+    timings = pd.DataFrame({'T': N_adp,
+                            'grb_avg': gurobi_avg_time,
+                            'grb_std': gurobi_std_time,
+                            'grb_min': gurobi_min_time,
+                            'grb_max': gurobi_max_time,
+                            'miosqp_avg': miosqp_avg_time,
+                            'miosqp_std': miosqp_std_time,
+                            'miosqp_min': miosqp_min_time,
+                            'miosqp_max': miosqp_max_time,
+                            'miosqp_osqp_avg_time': miosqp_osqp_avg_time,
+                            'miosqp_avg_osqp_iter': miosqp_avg_osqp_iter})
 
     print("Results")
     print(timings)
 
     timings.to_csv('results/power_converter_timings.csv')
 
-    # # Converting results to latex table and storing them to a file
-    # formatter = lambda x: '%1.2f' % x
-    # latex_table = timings.to_latex(header=False,
-    #                                float_format=formatter)
-    # f = open('results/power_converter_miqp.tex', 'w')
-    # f.write(latex_table)
-    # f.close()
-
-
     # Create error plots with fill_between
     plt.figure()
     ax = plt.gca()
     plt.semilogy(N_adp, gurobi_avg_time, color=colors['o'],
-             label='GUROBI')
+                 label='GUROBI')
     plt.semilogy(N_adp, miosqp_avg_time, color=colors['b'],
-             label='miOSQP')
+                 label='miOSQP')
     plt.xticks(N_adp)
     ax.set_xlabel(r'Horizon length $T$')
     ax.set_ylabel(r'Time [s]')
@@ -162,8 +149,3 @@ def run_example():
     # plt.show()
     plt.savefig('results/power_converter_timings.pdf')
 
-
-
-
-
-    #

@@ -462,7 +462,7 @@ class Model(object):
                                  'eps_rel': 1e-03,
                                  'eps_prim_inf': 1e-04,
                                  #  'rho': 0.001,
-                                 'rho': 0.1,
+                                 #  'rho': 0.1,
                                  'verbose': False}
                 self.solver = miosqp.MIOSQP()
                 self.solver.setup(qp.P, q, qp.A, qp.l,
@@ -490,21 +490,22 @@ class Model(object):
                 # import ipdb; ipdb.set_trace()
 
 
-
             if res_miosqp.status != miosqp.MI_SOLVED:
                 import ipdb; ipdb.set_trace()
             u = res_miosqp.x
             obj_val = res_miosqp.upper_glob
             solve_time = res_miosqp.run_time
-
+            osqp_solve_time = 100 * res_miosqp.osqp_solve_time / res_miosqp.run_time
 
         # Get first input
         u0 = u[:6]
 
         if solver == 'miosqp':
-            return u0, obj_val, solve_time, u, res_miosqp.osqp_iter_avg
+            return u0, obj_val, solve_time, u, \
+                    osqp_solve_time, \
+                    res_miosqp.osqp_iter_avg
         else:
-            return u0, obj_val, solve_time, u, 0
+            return u0, obj_val, solve_time, u, 0, 0
 
     def simulate_one_step(self, x, u):
         """
@@ -514,7 +515,6 @@ class Model(object):
         ynew = self.dyn_system.C.dot(x)
 
         return xnew, ynew
-
 
     def compute_signals(self, X):
         """
@@ -532,7 +532,6 @@ class Model(object):
         Y_star_phase = np.zeros((3, T_final))
         for i in range(T_final):
             Y_star_phase[:, i] = self.params.invP.dot(X[4:6, i])
-
 
         # Compute torque
         T_e = np.zeros(T_final)
@@ -601,6 +600,7 @@ class Model(object):
         if solver == 'miosqp':
             # If miosqp, set avg numer of iterations to 0
             miosqp_avg_osqp_iter = 0
+            miosqp_osqp_avg_time = 0
 
         # Rename some variables for notation ease
         nx = self.dyn_system.A.shape[0]
@@ -629,7 +629,7 @@ class Model(object):
         for i in tqdm(range(T_final)):
 
             # Compute mpc inputs
-            U[:, i], obj_vals[i], time_temp, u_prev, osqp_iter = \
+            U[:, i], obj_vals[i], time_temp, u_prev, osqp_time, osqp_iter = \
                 self.compute_mpc_input(X[:, i], u_prev, solver=solver)
 
             # Store time if after the init periods
@@ -646,10 +646,13 @@ class Model(object):
             if solver == 'miosqp':
                 # Append average number of osqp iterations
                 miosqp_avg_osqp_iter += osqp_iter
+                miosqp_osqp_avg_time += osqp_time
 
         if solver == 'miosqp':
-            # Divide total number of average iterations by time steps
+            # Divide total number of average OSQP iterations 
+            # and solve time by time steps
             miosqp_avg_osqp_iter /= T_final
+            miosqp_osqp_avg_time /= T_final
 
         # Compute additional signals for plotting
         Y_phase, Y_star_phase, T_e, T_e_des = self.compute_signals(X)
@@ -667,5 +670,6 @@ class Model(object):
 
         if solver == 'miosqp':
             stats.miosqp_avg_osqp_iter = miosqp_avg_osqp_iter
+            stats.miosqp_osqp_avg_time = miosqp_osqp_avg_time
 
         return stats
