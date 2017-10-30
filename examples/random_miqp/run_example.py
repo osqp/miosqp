@@ -7,19 +7,13 @@ from builtins import range
 import scipy as sp
 import scipy.sparse as spa
 import numpy as np
-import numpy.linalg as la
 import pandas as pd
-
-
-
-# Import plotting
-import matplotlib.pylab as plt
 
 
 import mathprogbasepy as mpbpy
 import miosqp
 
- # Import progress bar
+# Import progress bar
 from tqdm import tqdm
 
 # Reload miosqp module
@@ -71,7 +65,8 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
         # if solver == 'miosqp':
         #     osqp_solve_time_temp = np.zeros(repeat)
 
-        for j in tqdm(range(repeat)):
+        #  for j in tqdm(range(repeat)):
+        for j in range(repeat):
 
             # Generate random vector of indeces
             i_idx = np.random.choice(np.arange(0, n), p, replace=False)
@@ -85,14 +80,20 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
             l = -2 + sp.rand(m)
 
             # Enforce [0, 1] bounds on variables
-            A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
+            # Add osqp bounds
+            i_l = np.zeros(p)
+            i_u = np.ones(p)
+            
+            #  A, l, u = miosqp.add_bounds(i_idx, 0., 1., A, l, u)
 
             if solver == 'gurobi':
                 # Solve with gurobi
-                prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-                res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False, Threads=1)
+                prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx, i_l, i_u)
+                res_gurobi = prob.solve(solver=mpbpy.GUROBI,
+                                        verbose=False, Threads=1)
                 if res_gurobi.status != 'optimal':
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+                    ipdb.set_trace()
                 solve_time_temp[j] = 1e3 * res_gurobi.cputime
 
             elif solver == 'miosqp':
@@ -101,7 +102,7 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                                    'max_iter_bb': 1000,     # maximum number of iterations
                                    'tree_explor_rule': 1,   # tree exploration rule
                                                             #   [0] depth first
-                                                            #   [1] two-phase: depth first  until first incumbent and then  best bound
+                                                            #   [1] two-phase: depth first until first incumbent and then  best bound
                                    'branching_rule': 0,     # branching rule
                                                             #   [0] max fractional part
                                    'verbose': False,
@@ -110,25 +111,27 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
                 osqp_settings = {'eps_abs': 1e-03,
                                  'eps_rel': 1e-03,
                                  'eps_prim_inf': 1e-04,
-                                 'rho': 0.05,
-                                 'sigma': 1e-06,
-                                 'alpha': 1.6,
-                                 'polish': False,
-                                 'max_iter': 2000,
-                                 'early_terminate_interval': 25,
+                                 #  'rho': 0.05,
+                                 #  'sigma': 1e-06,
+                                 #  'alpha': 1.6,
+                                 #  'polish': False,
+                                 #  'max_iter': 2000,
                                  'verbose': False}
 
                 model = miosqp.MIOSQP()
-                model.setup(P, q, A, l, u, i_idx,
-                             miosqp_settings,
-                             osqp_settings)
+                model.setup(P, q, A, l, u, i_idx, i_l, i_u,
+                            miosqp_settings,
+                            osqp_settings)
                 res_miosqp = model.solve()
 
                 # DEBUG (check if solutions match)
-                # prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx)
-                # res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
-                # if np.linalg.norm(res_gurobi.x - res_miosqp.x) > 1e-02:
+                #  prob = mpbpy.QuadprogProblem(P, q, A, l, u, i_idx, i_l, i_u)
+                #  res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False)
+                #  if (np.linalg.norm(res_gurobi.x - res_miosqp.x) /
+                #          np.linalg.norm(res_gurobi.x)) > 1e-02:
                 #     import ipdb; ipdb.set_trace()
+#
+                #  import ipdb; ipdb.set_trace()
 
                 if res_miosqp.status != miosqp.MI_SOLVED:
                     import ipdb; ipdb.set_trace()
@@ -138,8 +141,6 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
 
                 # Store OSQP time in percentage
                 # osqp_solve_time_temp[j] = 100 * (res_miosqp.osqp_solve_time / res_miosqp.run_time)
-
-
 
         # Get time statistics
         std_solve_time[i] = np.std(solve_time_temp)
@@ -153,16 +154,14 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
         #     max_osqp_solve_time[i] = np.max(osqp_solve_time_temp)
         #     min_osqp_solve_time[i] = np.min(osqp_solve_time_temp)
 
-
-
     # Create pandas dataframe for the results
-    df_dict = { 'n' : n_vec,
-                'm' : m_vec,
-                'p' : p_vec,
-                't_min' : min_solve_time,
-                't_max' : max_solve_time,
-                't_avg' : avg_solve_time,
-                't_std' : std_solve_time }
+    df_dict = {'n': n_vec,
+               'm': m_vec,
+               'p': p_vec,
+               't_min': min_solve_time,
+               't_max': max_solve_time,
+               't_avg': avg_solve_time,
+               't_std': std_solve_time}
 
     # Store also OSQP time
     # if solver == 'miosqp':
@@ -175,16 +174,13 @@ def solve(n_vec, m_vec, p_vec, repeat, dns_level, seed, solver='gurobi'):
     return timings
 
 
-
 def run_example():
-#  if __name__ == "__main__":
 
     # General settings
     n_repeat = 10               # Number of repetitions for each problem
     problem_set = 1             # Problem sets 1 (q << n) or 2 (q = n)
     density_level = 0.7         # density level for sparse matrices
     random_seed = 0             # set random seed to make results reproducible
-
 
     if problem_set == 1:
         n_arr = np.array([10, 10,  50, 50,  100, 100, 150, 150])
@@ -197,31 +193,28 @@ def run_example():
         m_arr = 5 * n_arr
         p_arr = (0.5 * n_arr).astype(int)
 
-    n_prob = len(n_arr)                  # Number of problems in problem set
-
-
     timings_gurobi = solve(n_arr, m_arr, p_arr, n_repeat,
                            density_level, random_seed, solver='gurobi')
 
     timings_miosqp = solve(n_arr, m_arr, p_arr, n_repeat,
                            density_level, random_seed, solver='miosqp')
 
-
     print("Comparison table")
-    df_dict = { 'n' : n_arr,
-                'm' : m_arr,
-                'p' : p_arr,
-                't_miosqp_avg' : timings_miosqp['t_avg'],
-                't_miosqp_std' : timings_miosqp['t_std'],
-                't_miosqp_max' : timings_miosqp['t_max'],
-                't_gurobi_avg' : timings_gurobi['t_avg'],
-                't_gurobi_std' : timings_gurobi['t_std'],
-                't_gurobi_max' : timings_gurobi['t_max']}
+    df_dict = {'n': n_arr,
+               'm': m_arr,
+               'p': p_arr,
+               't_miosqp_avg': timings_miosqp['t_avg'],
+               't_miosqp_std': timings_miosqp['t_std'],
+               't_miosqp_max': timings_miosqp['t_max'],
+               't_gurobi_avg': timings_gurobi['t_avg'],
+               't_gurobi_std': timings_gurobi['t_std'],
+               't_gurobi_max': timings_gurobi['t_max']}
     comparison_table = pd.DataFrame(df_dict)
     cols = ['n', 'm', 'p', 't_miosqp_avg', 't_miosqp_std',
             't_miosqp_max', 't_gurobi_avg', 't_gurobi_std',
             't_gurobi_max']
     comparison_table = comparison_table[cols]  # Sort table columns
+    comparison_table.to_csv('results/random_miqp.csv', index=False)
     print(comparison_table)
 
     # Converting results to latex table and storing them to a file
@@ -231,10 +224,3 @@ def run_example():
     f = open('results/random_miqp.tex', 'w')
     f.write(latex_table)
     f.close()
-
-
-
-
-    # Figure
-    # plt.figure()
-    # plt.

@@ -96,3 +96,6 @@ ENV/
 
 # Mac files
 .DS_Store
+
+# Backups
+results_bak/

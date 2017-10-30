@@ -59,7 +59,7 @@ class Node(object):
         self.depth = depth
 
         # Set bound
-        if lower==None:
+        if lower is None:
             self.lower = -np.inf
         else:
             self.lower = lower
@@ -67,7 +67,6 @@ class Node(object):
         # Frac_idx, intin
         self.frac_idx = None
         self.intinf = None
-
 
         # Number of integer infeasible variables
         self.intinf = None
@@ -91,15 +90,14 @@ class Node(object):
 
         # Add next variable elements
         self.nextvar_idx = None   # Index of next variable within solution x
-        self.constr_idx = None    # Index of constraint to change for branching
-                                  #     on next variable
-
+        # Index of constraint to change for branching
+        # on next variable
+        self.constr_idx = None
 
     def solve(self):
         """
         Find lower bound of the relaxed problem corresponding to this node
         """
-
 
         # Update l and u in the solver instance
         self.solver.update(l=self.l, u=self.u)
@@ -115,7 +113,7 @@ class Node(object):
 
         # DEBUG: Problems that hit max_iter are infeasible
         # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
-            # self.status = self.solver.constant('OSQP_PRIMAL_INFEASIBLE')
+        #     self.status = self.solver.constant('OSQP_PRIMAL_INFEASIBLE')
 
         # Store number of iterations
         self.num_iter = results.info.iter
@@ -127,5 +125,24 @@ class Node(object):
         self.x = results.x
         self.y = results.y
 
-        # Get lower bound (objective value of relaxed problem)
-        self.lower = results.info.obj_val
+        # Enforce integer variables to be exactly within the bounds
+        if self.status == self.solver.constant('OSQP_SOLVED') or \
+                self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+            #  import ipdb; ipdb.set_trace()
+            n_int = self.data.n_int
+            i_idx = self.data.i_idx
+            self.x[i_idx] = \
+                np.minimum(np.maximum(self.x[i_idx],
+                                      self.l[-n_int:]),
+                           self.u[-n_int:])
+            #  if any(self.x[i_idx] < self.l[-n_int:]):
+            #      import ipdb; ipdb.set_trace()
+            #  if any(self.x[i_idx] > self.u[-n_int:]):
+            #      import ipdb; ipdb.set_trace()
+
+            # Update objective value of relaxed problem (lower bound)
+            self.lower = self.data.compute_obj_val(self.x)
+
+        #  # Get lower bound (objective value of relaxed problem)
+        #  self.lower = results.info.obj_val
+

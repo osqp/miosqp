@@ -1,6 +1,7 @@
 import scipy.sparse as spa
 import numpy as np
 
+
 def add_bounds(i_idx, l_new, u_new, A, l, u):
     """
     Add new bounds on the variables
@@ -16,13 +17,16 @@ def add_bounds(i_idx, l_new, u_new, A, l, u):
 
     I_int = spa.identity(n).tocsc()
     I_int = I_int[i_idx, :]
-    l_int = np.empty((n,))
-    l_int.fill(l_new)
-    l_int = l_int[i_idx]
-    u_int = np.empty((n,))
-    u_int.fill(u_new)
-    u_int = u_int[i_idx]
-    A = spa.vstack([A, I_int]).tocsc()      # Extend problem constraints matrix A
+    l_int = l_new
+    u_int = u_new
+    #  l_int = np.empty((n,))
+    #  l_int.fill(l_new)
+    #  l_int = l_int[i_idx]
+    #  u_int = np.empty((n,))
+    #  u_int.fill(u_new)
+    #  u_int = u_int[i_idx]
+    # Extend problem constraints matrix A
+    A = spa.vstack([A, I_int]).tocsc()
     l = np.append(l, l_int)         # Extend problem constraints
     u = np.append(u, u_int)         # Extend problem constraints
 
@@ -37,7 +41,7 @@ class Data(object):
         s.t.   l <= A x <= u
 
         where l = [l_orig]   and u = [u_orig] \\in R^{m + len(i_idx)}
-                  [ -inf ]           [ +inf ]
+                  [  i_l ]           [ +i_u ]
         and A = [A_orig] \\in R^{m + len(i_idx) \\times n}
                 [  I   ]
         are the newly introduced constraints to deal with integer variables
@@ -46,6 +50,12 @@ class Data(object):
     ----------
     n: int
         number of variables
+    n_idx: int
+        number of integer variables
+    i_u: numpy array
+        Upper bound on integer variables
+    i_l: numpy array
+        Lower bound on integer variables
     m: int
         number of constraints in original MIQP problem
     P: scipy sparse matrix
@@ -65,15 +75,15 @@ class Data(object):
         compute objective value
     """
 
-    def __init__(self, P, q, A, l, u, i_idx):
+    def __init__(self, P, q, A, l, u, i_idx, i_l, i_u):
         # MIQP problem dimensions
         self.n = A.shape[1]
         self.m = A.shape[0]
         self.n_int = len(i_idx)   # Number of integer variables
 
-        # Extend problem with new constraints to accomodate integral constraints
-        self.A, self.l, self.u = add_bounds(i_idx, -np.inf, np.inf, A, l, u)
-
+        # Extend problem with new constraints
+        # to accomodate integral constraints
+        self.A, self.l, self.u = add_bounds(i_idx, i_l, i_u, A, l, u)
 
         # Define problem cost function
         self.P = P.tocsc()
@@ -81,6 +91,10 @@ class Data(object):
 
         # Define index of integer variables
         self.i_idx = i_idx
+
+        # Define bounds on integer variables
+        self.i_l = i_l
+        self.i_u = i_u
 
     def compute_obj_val(self, x):
         """
@@ -104,7 +118,6 @@ class Data(object):
             if len(l) != self.m:
                 raise ValueError('Wrong l dimension!')
             self.l[:self.m] = l
-
 
         # Update upper bound
         if u is not None:
