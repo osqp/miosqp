@@ -1,4 +1,4 @@
-# Mixed-Integer Quadratic Program Python Solver Based on OSQP
+# Mixed-Integer Quadratic Program Solver Based on OSQP
 
 miOSQP solves an mixed-integer quadratic programs (MIQPs) of the form
 ```
