@@ -18,6 +18,7 @@ import miosqp
 from .tail_cost import TailCost
 from .quadratic_program import MIQP
 
+
 class Statistics(object):
     def __init__(self, fsw, thd, max_solve_time, min_solve_time,
                  avg_solve_time, std_solve_time):
@@ -27,6 +28,7 @@ class Statistics(object):
         self.min_solve_time = min_solve_time
         self.avg_solve_time = avg_solve_time
         self.std_solve_time = std_solve_time
+
 
 class SimulationResults(object):
     """
@@ -41,6 +43,7 @@ class SimulationResults(object):
         self.T_e = T_e
         self.T_e_des = T_e_des
         self.solve_times = solve_times
+
 
 class DynamicalSystem(object):
     """
@@ -423,7 +426,6 @@ class Model(object):
 
         N = qp.N
 
-
         # Update objective
         q = 2. * (qp.q_x.dot(x0) + qp.q_u)
 
@@ -434,17 +436,17 @@ class Model(object):
 
         if solver == 'gurobi':
             # Solve problem
-            prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx, x0=u_prev)
+            prob = mpbpy.QuadprogProblem(qp.P, q, qp.A, qp.l, qp.u, qp.i_idx,
+                                         qp.i_l, qp.i_u, x0=u_prev)
             res_gurobi = prob.solve(solver=mpbpy.GUROBI, verbose=False,
                                     Threads=1)
             u = res_gurobi.x
             obj_val = res_gurobi.obj_val
             solve_time = res_gurobi.cputime
 
-
         elif solver == 'miosqp':
 
-            if self.solver == None:
+            if self.solver is None:
                 # Define problem settings
                 miosqp_settings = {'eps_int_feas': 1e-02,   # integer feasibility tolerance
                                    'max_iter_bb': 2000,     # maximum number of iterations
@@ -459,18 +461,14 @@ class Model(object):
                 osqp_settings = {'eps_abs': 1e-03,
                                  'eps_rel': 1e-03,
                                  'eps_prim_inf': 1e-04,
-                                 'rho': 0.001,
-                                 'sigma': 1e-06,
-                                 'alpha': 1.6,
-                                 'polish': False,
-                                 'max_iter': 2000,
-                                 'early_terminate_interval': 25,
+                                 #  'rho': 0.001,
+                                 'rho': 0.1,
                                  'verbose': False}
                 self.solver = miosqp.MIOSQP()
                 self.solver.setup(qp.P, q, qp.A, qp.l,
-                                   qp.u, qp.i_idx,
-                                   miosqp_settings,
-                                   osqp_settings)
+                                  qp.u, qp.i_idx, qp.i_l, qp.i_u,
+                                  miosqp_settings,
+                                  osqp_settings)
             else:
                 self.solver.update_vectors(q, qp.l, qp.u)
 
@@ -572,7 +570,6 @@ class Model(object):
         freq_sw = N_sw / (1. / self.params.freq * sim_periods)
         fsw = np.mean(freq_sw)  # Compute average between 12 switches
 
-
         # Get THD
         t = self.time.t
         t_init = init_periods * Nstpp
@@ -590,13 +587,12 @@ class Model(object):
                           max_solve_time, min_solve_time,
                           avg_solve_time, std_solve_time)
 
-
     def simulate_cl(self, N, steady_trans, solver='gurobi', plot=False):
         """
         Perform closed loop simulation
         """
 
-        print("Simulating closed loop N = %i with solver %s" % \
+        print("Simulating closed loop N = %i with solver %s" %
               (N, solver))
 
         # Reset solver
@@ -612,7 +608,6 @@ class Model(object):
         ny = self.dyn_system.C.shape[0]
         T_final = self.time.T_final
         T_timing = self.time.T_timing
-
 
         # Compute QP matrices
         self.qp_matrices = MIQP(self.dyn_system, N, self.tail_cost)
@@ -633,14 +628,14 @@ class Model(object):
         # Run loop
         for i in tqdm(range(T_final)):
 
-
             # Compute mpc inputs
             U[:, i], obj_vals[i], time_temp, u_prev, osqp_iter = \
-            self.compute_mpc_input(X[:, i], u_prev, solver=solver)
+                self.compute_mpc_input(X[:, i], u_prev, solver=solver)
 
             # Store time if after the init periods
             if i >= self.time.init_periods * self.time.Nstpp:
-                solve_times[i - self.time.init_periods * self.time.Nstpp] = time_temp
+                solve_times[i - self.time.init_periods * self.time.Nstpp] = \
+                        time_temp
 
             # Simulate one step
             X[:, i + 1], Y[:, i] = self.simulate_one_step(X[:, i], U[:, i])
@@ -655,7 +650,6 @@ class Model(object):
         if solver == 'miosqp':
             # Divide total number of average iterations by time steps
             miosqp_avg_osqp_iter /= T_final
-
 
         # Compute additional signals for plotting
         Y_phase, Y_star_phase, T_e, T_e_des = self.compute_signals(X)

@@ -8,16 +8,14 @@ Simulate inverter model with ADP formulation from the paper
 import numpy as np
 import pandas as pd
 
+# Power converter model files
+from .power_converter import Model
 
 # Import plotting library
 import matplotlib.pylab as plt
-import matplotlib
-colors = { 'b': '#1f77b4',
-           'g': '#2ca02c',
-           'o': '#ff7f0e'}
-
-# Power converter model files
-from .power_converter import Model
+colors = {'b': '#1f77b4',
+          'g': '#2ca02c',
+          'o': '#ff7f0e'}
 
 
 def run_example():
@@ -28,16 +26,16 @@ def run_example():
     freq = 50.               # Switching frequency
     torque = 1.              # Desired torque
     t0 = 0.0                 # Initial time
-    init_periods = 1         # Number of integer period to settle before simulation
+    init_periods = 1         # Number of periods to settle before simulation
     sim_periods = 2          # Numer of simulated periods
     flag_steady_trans = 0    # Flag Steady State (0) or Transients (1)
-
 
     '''
     ADP Parameters
     '''
     gamma = 0.95                # Forgetting factor
     N_adp = np.arange(1, 6)     # Horizon length
+    #  N_adp = np.array([2])
     delta = 5.5                 # Switching frequency penalty
     N_tail = 50
 
@@ -45,7 +43,6 @@ def run_example():
     k1 = 0.8e03
     k2 = 0.8e03
     fsw_des = 300
-
 
     '''
     Setup model
@@ -64,11 +61,10 @@ def run_example():
     '''
     Allocate output statistics
     '''
-    THD_adp = []
-    fsw_adp = []
-    Te_adp = []
-    Times_adp = []
-
+    #  THD_adp = []
+    #  fsw_adp = []
+    #  Te_adp = []
+    #  Times_adp = []
 
     '''
     Run simulations
