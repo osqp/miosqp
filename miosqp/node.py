@@ -13,8 +13,6 @@ class Node(object):
         problem data
     depth: int
         depth in the tree
-    ©: int
-        number of fractional elements which are supposed to be integer
     frac_idx: array of int
         index within the i_idx vector of the elements of x that are still fractional
     l: numpy array
