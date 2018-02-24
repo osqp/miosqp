@@ -16,7 +16,7 @@ To install the package simply run
 ```
 python setup.py install
 ```
-it depends on [OSQP](osqp.readthedocs.io), numpy and scipy.
+it depends on [OSQP](https://osqp.readthedocs.io), numpy and scipy.
 
 
 ## Usage
