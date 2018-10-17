@@ -27,10 +27,10 @@ m = miosqp.MIOSQP()
 m.setup(P, q, A, l, u, i_idx, i_l, i_u)
 results = m.solve()
 ```
-where `P` is a symmetric positive semidefinite matrix and `A` a matrix. 
+where `P` is a symmetric positive semidefinite matrix and `A` a matrix.
 `P` and `A` are both in the scipy sparse CSC format.
 
-The returned object `results` contains 
+The returned object `results` contains
 -  `x`: the solution
 -  `upper_glob`: the cost function upper bound
 -  `run_time`: the solution time
@@ -52,7 +52,21 @@ To set an initial feasible solution `x0` we can run
 m.set_x0(x0)
 ```
 
+## Citing
 
+If you are using this package for your work, please cite the following paper:
+
+```
+@inproceedings{stellato2018,
+  author = {Stellato, B. and Naik, V. V. and Bemporad, A. and Goulart, P. and Boyd, S.},
+  title = {Embedded Mixed-Integer Quadratic Optimization Using the {OSQP} Solver},
+  booktitle = {European Control Conference ({ECC})},
+  year = {2018},
+  code = {https://github.com/oxfordcontrol/miosqp},
+  month = jul,
+  groups = {power electronics, integer programs}
+}
+```
 
 ## Run examples
 In order to run the examples from to compare with GUROBI, after installing the python insterface, you need to install [mathprogbasepy](https://github.com/bstellato/mathprogbasepy). Examples can be found in the `examples` folder.
