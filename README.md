@@ -54,7 +54,7 @@ m.set_x0(x0)
 
 ## Citing
 
-If you are using this package for your work, please cite the following paper:
+If you are using this package for your work, please cite the [following paper](https://stellato.io/assets/downloads/publications/2018/miosqp_ecc.pdf):
 
 ```
 @inproceedings{stellato2018,
