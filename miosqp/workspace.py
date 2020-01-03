@@ -96,7 +96,7 @@ class Workspace(object):
         Set initial condition
         """
 
-        # Suppose that algorithm hasn't been run yet. 
+        # Suppose that algorithm hasn't been run yet.
         # Tree has only one leaf (root)
         root = self.leaves[0]
 
@@ -193,7 +193,7 @@ class Workspace(object):
         # DEBUG:
         if any(l_right > u_right):
             import ipdb; ipdb.set_trace()
-        
+
         # Create new leaf
         new_leaf = Node(self.data, l_right, u_right, self.solver,
                         depth=leaf.depth + 1, lower=leaf.lower,
@@ -291,8 +291,8 @@ class Workspace(object):
         self.osqp_solve_time += leaf.osqp_solve_time
 
         # 1) If infeasible or unbounded, then return (prune)
-        if leaf.status == self.solver.constant('OSQP_PRIMAL_INFEASIBLE') or \
-                leaf.status == self.solver.constant('OSQP_DUAL_INFEASIBLE'):
+        if leaf.status == osqp.constant('OSQP_PRIMAL_INFEASIBLE') or \
+                leaf.status == osqp.constant('OSQP_DUAL_INFEASIBLE'):
             return
 
         # 2) If lower bound is greater than upper bound, then return (prune)
@@ -400,8 +400,8 @@ class Workspace(object):
             gap = "%8.2f%%" % \
                 ((self.upper_glob - self.lower_glob)/abs(self.lower_glob)*100)
 
-        if leaf.status == self.solver.constant('OSQP_PRIMAL_INFEASIBLE') or \
-                leaf.status == self.solver.constant('OSQP_DUAL_INFEASIBLE'):
+        if leaf.status == osqp.constant('OSQP_PRIMAL_INFEASIBLE') or \
+                leaf.status == osqp.constant('OSQP_DUAL_INFEASIBLE'):
             obj = np.inf
         else:
             obj = leaf.lower
@@ -416,7 +416,7 @@ class Workspace(object):
                leaf.depth, intinf, self.lower_glob,
                self.upper_glob, gap, leaf.num_iter), end='')
 
-        if leaf.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+        if leaf.status == osqp.constant('OSQP_MAX_ITER_REACHED'):
             print("!")
         else:
             print("")

@@ -1,4 +1,5 @@
 import numpy as np
+import osqp
 
 
 class Node(object):
@@ -84,7 +85,7 @@ class Node(object):
         self.y = y0
 
         # Set QP solver return status
-        self.status = self.solver.constant('OSQP_UNSOLVED')
+        self.status = osqp.constant('OSQP_UNSOLVED')
 
         # Add next variable elements
         self.nextvar_idx = None   # Index of next variable within solution x
@@ -110,8 +111,8 @@ class Node(object):
         self.status = results.info.status_val
 
         # DEBUG: Problems that hit max_iter are infeasible
-        # if self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
-        #     self.status = self.solver.constant('OSQP_PRIMAL_INFEASIBLE')
+        # if self.status == osqp.constant('OSQP_MAX_ITER_REACHED'):
+        #     self.status = osqp.constant('OSQP_PRIMAL_INFEASIBLE')
 
         # Store number of iterations
         self.num_iter = results.info.iter
@@ -124,8 +125,8 @@ class Node(object):
         self.y = results.y
 
         # Enforce integer variables to be exactly within the bounds
-        if self.status == self.solver.constant('OSQP_SOLVED') or \
-                self.status == self.solver.constant('OSQP_MAX_ITER_REACHED'):
+        if self.status == osqp.constant('OSQP_SOLVED') or \
+                self.status == osqp.constant('OSQP_MAX_ITER_REACHED'):
             #  import ipdb; ipdb.set_trace()
             n_int = self.data.n_int
             i_idx = self.data.i_idx

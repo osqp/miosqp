@@ -102,3 +102,6 @@ results_bak/
 
 # Vim backup files
 *.swp
+*.csv
+*.tex
+*.pdf
