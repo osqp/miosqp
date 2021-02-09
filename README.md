@@ -69,7 +69,7 @@ If you are using this package for your work, please cite the [following paper](h
 ```
 
 ## Run examples
-In order to run the examples from to compare with GUROBI, after installing the python insterface, you need to install [mathprogbasepy](https://github.com/bstellato/mathprogbasepy). Examples can be found in the `examples` folder.
+In order to run the examples from to compare with GUROBI, after installing the python interface, you need to install [mathprogbasepy](https://github.com/bstellato/mathprogbasepy). Examples can be found in the `examples` folder.
 
 -   Random MIQPs
 -   Power system example
