@@ -109,12 +109,13 @@ class MIOSQP(object):
                 # import pdb; pdb.set_trace()
 
             # 3) Bound and Branch
-            work.bound_and_branch(leaf)
+            if not (leaf.x == None).any():
+                work.bound_and_branch(leaf)
 
-            if (work.iter_num % (work.settings['print_interval']) == 0) and \
-                    work.settings['verbose']:
-                # Print progress
-                work.print_progress(leaf)
+                if (work.iter_num % (work.settings['print_interval']) == 0) and \
+                        work.settings['verbose']:
+                    # Print progress
+                    work.print_progress(leaf)
 
             # Delete leaf object
             del(leaf)
