@@ -142,7 +142,9 @@ class Workspace(object):
                 leaf_idx = np.argmax([leaf.depth for leaf in self.leaves])
             else:
                 # Second phase
-                leaf_idx = np.argmax([leaf.lower for leaf in self.leaves])
+                # patch argmax to argmin
+                # See: https://github.com/osqp/miosqp/issues/12
+                leaf_idx = np.argmin([leaf.lower for leaf in self.leaves])
         else:
             raise ValueError('Tree exploring strategy not recognized')
 
@@ -167,8 +169,8 @@ class Workspace(object):
             np.floor(leaf.x[leaf.nextvar_idx])
 
         # DEBUG:
-        if any(l_left > u_left):
-            import ipdb; ipdb.set_trace()
+        # if any(l_left > u_left):
+        #     import ipdb; ipdb.set_trace()
 
         # Create new leaf
         new_leaf = Node(self.data, l_left, u_left, self.solver,
@@ -191,8 +193,8 @@ class Workspace(object):
             np.ceil(leaf.x[leaf.nextvar_idx])
 
         # DEBUG:
-        if any(l_right > u_right):
-            import ipdb; ipdb.set_trace()
+        # if any(l_right > u_right):
+        #     import ipdb; ipdb.set_trace()
 
         # Create new leaf
         new_leaf = Node(self.data, l_right, u_right, self.solver,
