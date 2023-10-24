@@ -7,12 +7,14 @@ import osqp
 
 # Miosqp files
 from miosqp.node import Node
-from miosqp.constants import MI_UNSOLVED, \
-                             MI_PRIMAL_INFEASIBLE, \
-                             MI_DUAL_INFEASIBLE, \
-                             MI_SOLVED, \
-                             MI_MAX_ITER_FEASIBLE, \
-                             MI_MAX_ITER_UNSOLVED
+from miosqp.constants import (
+    MI_UNSOLVED,
+    MI_PRIMAL_INFEASIBLE,
+    MI_DUAL_INFEASIBLE,
+    MI_SOLVED,
+    MI_MAX_ITER_FEASIBLE,
+    MI_MAX_ITER_UNSOLVED,
+)
 
 
 class Workspace(object):
@@ -55,6 +57,7 @@ class Workspace(object):
     x: numpy array
         current best solution
     """
+
     def __init__(self, data, settings, qp_settings=None):
         self.data = data
         self.settings = settings
@@ -64,13 +67,19 @@ class Workspace(object):
         self.qp_settings = qp_settings
         if self.qp_settings is None:
             self.qp_settings = {}
-        self.solver.setup(self.data.P, self.data.q, self.data.A,
-                          self.data.l, self.data.u, **qp_settings)
+        self.solver.setup(
+            self.data.P,
+            self.data.q,
+            self.data.A,
+            self.data.l,
+            self.data.u,
+            **qp_settings
+        )
 
         # Define other internal variables
         self.first_run = 1
         self.iter_num = 1
-        self.osqp_solve_time = 0.
+        self.osqp_solve_time = 0.0
         self.osqp_iter = 0
         self.osqp_iter_avg = 0
         self.lower_glob = -np.inf
@@ -87,9 +96,9 @@ class Workspace(object):
         self.x = np.empty(self.data.n)
 
         # Define timings
-        self.setup_time = 0.
-        self.solve_time = 0.
-        self.run_time = 0.
+        self.setup_time = 0.0
+        self.solve_time = 0.0
+        self.run_time = 0.0
 
     def set_x0(self, x0):
         """
@@ -101,12 +110,13 @@ class Workspace(object):
         root = self.leaves[0]
 
         # Add initial solution and objective value
-        if self.satisfies_lin_constraints(x0, root.l, root.u) and \
-                self.is_int_feas(x0, root):
+        if self.satisfies_lin_constraints(x0, root.l, root.u) and self.is_int_feas(
+            x0, root
+        ):
             self.x = x0
             self.upper_glob = self.data.compute_obj_val(x0)
         else:
-            print('Invalid initial solution!\n')
+            print("Invalid initial solution!\n")
             self.upper_glob = np.inf
             self.x = np.empty(self.data.n)
 
@@ -120,7 +130,7 @@ class Workspace(object):
             return False
 
         # Check if the number of iterations is within the limit
-        if not self.iter_num < self.settings['max_iter_bb']:
+        if not self.iter_num < self.settings["max_iter_bb"]:
             return False
 
         return True
@@ -144,7 +154,7 @@ class Workspace(object):
                 # Second phase
                 leaf_idx = np.argmax([leaf.lower for leaf in self.leaves])
         else:
-            raise ValueError('Tree exploring strategy not recognized')
+            raise ValueError("Tree exploring strategy not recognized")
 
         # Get leaf
         leaf = self.leaves[leaf_idx]
@@ -163,17 +173,25 @@ class Workspace(object):
         u_left = np.copy(leaf.u)
 
         # x <= floor(x_relaxed)
-        u_left[leaf.constr_idx] = \
-            np.floor(leaf.x[leaf.nextvar_idx])
+        u_left[leaf.constr_idx] = np.floor(leaf.x[leaf.nextvar_idx])
 
         # DEBUG:
         if any(l_left > u_left):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
 
         # Create new leaf
-        new_leaf = Node(self.data, l_left, u_left, self.solver,
-                        depth=leaf.depth + 1, lower=leaf.lower,
-                        x0=leaf.x, y0=leaf.y)
+        new_leaf = Node(
+            self.data,
+            l_left,
+            u_left,
+            self.solver,
+            depth=leaf.depth + 1,
+            lower=leaf.lower,
+            x0=leaf.x,
+            y0=leaf.y,
+        )
 
         # Add leaf to the leaves list
         self.leaves.append(new_leaf)
@@ -187,17 +205,25 @@ class Workspace(object):
         u_right = np.copy(leaf.u)
 
         # ceil(x_relaxed) <= x
-        l_right[leaf.constr_idx] = \
-            np.ceil(leaf.x[leaf.nextvar_idx])
+        l_right[leaf.constr_idx] = np.ceil(leaf.x[leaf.nextvar_idx])
 
         # DEBUG:
         if any(l_right > u_right):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
 
         # Create new leaf
-        new_leaf = Node(self.data, l_right, u_right, self.solver,
-                        depth=leaf.depth + 1, lower=leaf.lower,
-                        x0=leaf.x, y0=leaf.y)
+        new_leaf = Node(
+            self.data,
+            l_right,
+            u_right,
+            self.solver,
+            depth=leaf.depth + 1,
+            lower=leaf.lower,
+            x0=leaf.x,
+            y0=leaf.y,
+        )
 
         # Add leaf to the leaves list
         self.leaves.append(new_leaf)
@@ -209,8 +235,7 @@ class Workspace(object):
         # Part of solution that is supposed to be integer
         x_frac = leaf.x[self.data.i_idx[leaf.frac_idx]]
 
-        if self.settings['branching_rule'] == 0:
-
+        if self.settings["branching_rule"] == 0:
             # Get vector of fractional parts
             fract_part = abs(x_frac - np.round(x_frac))
 
@@ -221,7 +246,7 @@ class Workspace(object):
             nextvar = leaf.frac_idx[next_idx]
 
         else:
-            raise ValueError('No variable selection rule recognized!')
+            raise ValueError("No variable selection rule recognized!")
 
         # Get next variable constraint index
         leaf.constr_idx = self.data.m + nextvar
@@ -235,8 +260,9 @@ class Workspace(object):
         """
         # Check if it satisfies current l and u bounds
         z = self.data.A.dot(x)
-        if any(z < l - self.qp_settings['eps_abs']) | \
-                any(z > u + self.qp_settings['eps_abs']):
+        if any(z < l - self.qp_settings["eps_abs"]) | any(
+            z > u + self.qp_settings["eps_abs"]
+        ):
             return False
 
         # If we got here, it is integer feasible
@@ -251,8 +277,7 @@ class Workspace(object):
         x_int = x[self.data.i_idx]
 
         # Part of the solution that is still fractional
-        int_feas_false = abs(x_int - np.round(x_int)) >\
-            self.settings['eps_int_feas']
+        int_feas_false = abs(x_int - np.round(x_int)) > self.settings["eps_int_feas"]
         # Index of frac parts
         leaf.frac_idx = np.where(int_feas_false)[0].tolist()
         # Store number of fractional elements (integer infeasible)
@@ -291,8 +316,12 @@ class Workspace(object):
         self.osqp_solve_time += leaf.osqp_solve_time
 
         # 1) If infeasible or unbounded, then return (prune)
-        if leaf.status == osqp.constant('OSQP_PRIMAL_INFEASIBLE') or \
-                leaf.status == osqp.constant('OSQP_DUAL_INFEASIBLE'):
+        if leaf.status in [
+            osqp.constant("OSQP_PRIMAL_INFEASIBLE"),
+            osqp.constant("OSQP_DUAL_INFEASIBLE"),
+            osqp.constant("OSQP_PRIMAL_INFEASIBLE_INACCURATE"),
+            osqp.constant("OSQP_DUAL_INFEASIBLE_INACCURATE"),
+        ]:
             return
 
         # 2) If lower bound is greater than upper bound, then return (prune)
@@ -303,7 +332,7 @@ class Workspace(object):
         #   - update best solution
         #   - update best upper bound
         #   - prune all leaves with lower bound greater than best upper bound
-        if (self.is_int_feas(leaf.x, leaf)):
+        if self.is_int_feas(leaf.x, leaf):
             # Update best solution so far
             self.x = leaf.x
             # Update upper bound
@@ -319,8 +348,7 @@ class Workspace(object):
         #       - update best upper bound
         #       - prune all leaves with lower bound greater than current one
         x_int = self.get_integer_solution(leaf.x)
-        if self.satisfies_lin_constraints(x_int,
-                                          self.data.l, self.data.u):
+        if self.satisfies_lin_constraints(x_int, self.data.l, self.data.u):
             obj_int = self.data.compute_obj_val(x_int)
             if obj_int < self.upper_glob:
                 self.upper_glob = obj_int
@@ -353,14 +381,13 @@ class Workspace(object):
         """
         Get return status for MIQP solver
         """
-        if self.iter_num < self.settings['max_iter_bb']:  # Finished
-
+        if self.iter_num < self.settings["max_iter_bb"]:  # Finished
             if self.upper_glob != np.inf:
                 self.status = MI_SOLVED
             else:
                 if self.upper_glob >= 0:  # +inf
                     self.status = MI_PRIMAL_INFEASIBLE
-                else:                     # -inf
+                else:  # -inf
                     self.status = MI_DUAL_INFEASIBLE
 
         else:  # Hit maximum number of iterations
@@ -369,7 +396,7 @@ class Workspace(object):
             else:
                 if self.upper_glob >= 0:  # +inf
                     self.status = MI_MAX_ITER_UNSOLVED
-                else:                     # -inf
+                else:  # -inf
                     self.status = MI_DUAL_INFEASIBLE
 
     def get_return_solution(self):
@@ -377,18 +404,20 @@ class Workspace(object):
         Get exact mixed-integer solution
         """
 
-        if self.status == MI_SOLVED or \
-                self.status == MI_MAX_ITER_FEASIBLE:
+        if self.status == MI_SOLVED or self.status == MI_MAX_ITER_FEASIBLE:
             # Part of solution that is supposed to be integer
-            self.x[self.data.i_idx] = \
-                np.round(self.x[self.data.i_idx])
+            self.x[self.data.i_idx] = np.round(self.x[self.data.i_idx])
 
     def print_headline(self):
         """
         Print headline
         """
-        print("     Nodes      |           Current Node        |             Objective Bounds             |   Cur Node")
-        print("Explr\tUnexplr\t|      Obj\tDepth\tIntInf  |    Lower\t   Upper\t    Gap    |     Iter")
+        print(
+            "     Nodes      |           Current Node        |             Objective Bounds             |   Cur Node"
+        )
+        print(
+            "Explr\tUnexplr\t|      Obj\tDepth\tIntInf  |    Lower\t   Upper\t    Gap    |     Iter"
+        )
 
     def print_progress(self, leaf):
         """
@@ -397,11 +426,13 @@ class Workspace(object):
         if self.upper_glob == np.inf:
             gap = "    --- "
         else:
-            gap = "%8.2f%%" % \
-                ((self.upper_glob - self.lower_glob)/abs(self.lower_glob)*100)
+            gap = "%8.2f%%" % (
+                (self.upper_glob - self.lower_glob) / abs(self.lower_glob) * 100
+            )
 
-        if leaf.status == osqp.constant('OSQP_PRIMAL_INFEASIBLE') or \
-                leaf.status == osqp.constant('OSQP_DUAL_INFEASIBLE'):
+        if leaf.status == osqp.constant(
+            "OSQP_PRIMAL_INFEASIBLE"
+        ) or leaf.status == osqp.constant("OSQP_DUAL_INFEASIBLE"):
             obj = np.inf
         else:
             obj = leaf.lower
@@ -411,12 +442,23 @@ class Workspace(object):
         else:
             intinf = "%5d" % leaf.intinf
 
-        print("%4d\t%4d\t  %10.2e\t%4d\t%s\t  %10.2e\t%10.2e\t%s\t%5d" %
-              (self.iter_num, len(self.leaves), obj,
-               leaf.depth, intinf, self.lower_glob,
-               self.upper_glob, gap, leaf.num_iter), end='')
+        print(
+            "%4d\t%4d\t  %10.2e\t%4d\t%s\t  %10.2e\t%10.2e\t%s\t%5d"
+            % (
+                self.iter_num,
+                len(self.leaves),
+                obj,
+                leaf.depth,
+                intinf,
+                self.lower_glob,
+                self.upper_glob,
+                gap,
+                leaf.num_iter,
+            ),
+            end="",
+        )
 
-        if leaf.status == osqp.constant('OSQP_MAX_ITER_REACHED'):
+        if leaf.status == osqp.constant("OSQP_MAX_ITER_REACHED"):
             print("!")
         else:
             print("")
